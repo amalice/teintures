@@ -30,7 +30,9 @@ jobs:
           git config --global user.email "amalice@users.noreply.github.com"
           git config --global user.name "amalice"
 
+      - name: Configure Git remote URL with token
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAGES_TOKEN }}@github.com/amalice/teintures.git
+
       - name: Deploy to GitHub Pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}  # Utilise le token pour l'authentification
         run: npm run deploy
