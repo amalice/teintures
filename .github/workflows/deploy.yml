@@ -14,7 +14,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22  # Utilise Node.js 22 (LTS)
+          node-version: 22
 
       - name: Install dependencies
         run: npm install
@@ -23,7 +23,7 @@ jobs:
         env:
           REACT_APP_SUPABASE_URL: ${{ secrets.REACT_APP_SUPABASE_URL }}
           REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}
-        run: npm run build
+        run: npm run build  # Plus besoin de `env-cmd` ici
 
       - name: Deploy to GitHub Pages
         run: npm run deploy
