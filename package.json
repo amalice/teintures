@@ -16,7 +16,7 @@
   "homepage": "https://amalice.github.io/teintures",
   "scripts": {
     "start": "react-scripts start",
-    "build": "env-cmd -f .env.production react-scripts build",
+    "build": "react-scripts build", 
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build",
     "test": "react-scripts test",
