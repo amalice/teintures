@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from '../SupabaseClient';
+import { supabase } from '../supabaseClient';
 
 const PrivateRoute = ({ children }) => {
   const [session, setSession] = useState(null);

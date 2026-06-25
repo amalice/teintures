@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../SupabaseClient';
+import { supabase } from '../supabaseClient';
 
 export default function Admin() {
   const [projets, setProjets] = useState([]);

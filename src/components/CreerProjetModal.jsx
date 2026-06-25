@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../SupabaseClient';
+import { supabase } from '../supabaseClient';
 
 export default function CreerProjetModal({ onClose, onProjetCreated }) {
   const [nom, setNom] = useState('');

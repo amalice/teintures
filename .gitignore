@@ -1,6 +1,6 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-src/SupabaseClient.js
+src/supabaseClient.js
 .env
 src/config.js
 .env*

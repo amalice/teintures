@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { supabase } from './SupabaseClient';
+import { supabase } from './supabaseClient';
 import { useEffect, useState, createContext, useContext } from 'react';
 import Login from './pages/Login';
 import Home from './pages/Home';

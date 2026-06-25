@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../SupabaseClient';
+import { supabase } from '../supabaseClient';
 import chroma from 'chroma-js';
 import { getRecettesTableName } from '../utils/tableNames';
 import { useNavigate } from 'react-router-dom';
