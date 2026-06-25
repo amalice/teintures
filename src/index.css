@@ -1,13 +1,69 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@media print {
+  /* Masquer les boutons */
+  button {
+    display: none !important;
+  }
+
+  /* Masquer le menu du haut */
+  .navbar {
+    display: none !important;
+  }
+
+  /* Masquer les titres (si tu as des titres avec la classe page-title) */
+  .page-title, h1, h2, h3 {
+    display: none !important;
+  }
+
+  /* Masquer les éléments marqués avec la classe no-print */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Réduire les marges et forcer le contenu sur une page */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+
+  /* Éviter les sauts de page pour les éléments du template */
+  div, p, table, tr, td, th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Réduire la taille de la police */
+  * {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Réduire les marges des éléments */
+  div, p, table, tr, td, th {
+    margin: 0 !important;
+    padding: 2px !important;
+  }
+
+  /* Forcer les tableaux à ne pas dépasser */
+  table {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /* Adapter la largeur des éléments */
+  .grid, .flex {
+    width: 100% !important;
+  }
+
+  .print-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
 }
