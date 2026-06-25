@@ -25,11 +25,12 @@ jobs:
           REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}
         run: npm run build
 
-      # 👇 NOUVEAU : Configurer l'identité Git pour gh-pages
       - name: Configure Git identity
         run: |
           git config --global user.email "amalice@users.noreply.github.com"
           git config --global user.name "amalice"
 
       - name: Deploy to GitHub Pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}  # Utilise le token pour l'authentification
         run: npm run deploy
