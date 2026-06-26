@@ -23,7 +23,16 @@ jobs:
         env:
           REACT_APP_SUPABASE_URL: ${{ secrets.REACT_APP_SUPABASE_URL }}
           REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.REACT_APP_SUPABASE_ANON_KEY }}
-        run: npm run build  # Plus besoin de `env-cmd` ici
+        run: npm run build
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "amalice@users.noreply.github.com"
+          git config --global user.name "amalice"
+
+      - name: Configure Git remote URL with token
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAGES_TOKEN }}@github.com/amalice/teintures.git
 
       - name: Deploy to GitHub Pages
         run: npm run deploy
