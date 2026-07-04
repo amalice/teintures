@@ -723,10 +723,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         <input
                           type="number"
                           value={pourcentage}
-                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_1', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_1', parseFloat(e.target.value) || 0)}
                           className="w-full p-1 border rounded text-sm text-center bg-green-50"
                           min="0"
-                          //step="0.01"
+                          step="0.01"
                         />
                       </td>
                       <td key={`mordant1_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
@@ -749,10 +749,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         <input
                           type="number"
                           value={pourcentage}
-                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_2', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_2', parseFloat(e.target.value) || 0)}
                           className="w-full p-1 border rounded text-sm text-center bg-green-50"
                           min="0"
-                          //step="0.01"
+                          step="0.01"
                         />
                       </td>
                       <td key={`mordant2_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
@@ -775,10 +775,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         <input
                           type="number"
                           value={pourcentage}
-                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_3', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleCouleurChange(index, 'pourcent_mordant_3', parseFloat(e.target.value) || 0)}
                           className="w-full p-1 border rounded text-sm text-center bg-green-50"
                           min="0"
-                          //step="0.01"
+                          step="0.01"
                         />
                       </td>
                       <td key={`mordant3_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
