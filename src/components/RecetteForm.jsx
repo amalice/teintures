@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import chroma from 'chroma-js';
 import { getRecettesTableName } from '../utils/tableNames';
@@ -61,6 +61,49 @@ const Section = ({ titre, note, children, minWidth = 'min-w-[1060px]' }) => (
     </div>
   </section>
 );
+
+// Case L, a ou b : champ texte qui accepte une saisie en cours (« - », « -1 », « 12, »…)
+// et ne transmet la valeur que lorsqu'elle forme un nombre complet, borné entre min et max.
+const NOMBRE_COMPLET = /^-?\d+(\.\d*)?$|^-?\.\d+$/;
+const SAISIE_POSSIBLE = /^-?\d*[.,]?\d*$/;
+
+const ChampLab = ({ value, onValeur, min, max, label }) => {
+  const [saisie, setSaisie] = useState(value === null || value === undefined ? '' : String(value));
+  const enCours = useRef(false);
+
+  // Mise à jour depuis l'extérieur (ex. Lab recalculé après un changement de HEX)
+  useEffect(() => {
+    if (!enCours.current) setSaisie(value === null || value === undefined ? '' : String(value));
+  }, [value]);
+
+  const surSaisie = (e) => {
+    const texte = e.target.value.replace(/\s/g, '');
+    if (!SAISIE_POSSIBLE.test(texte)) return; // ignore lettres et caractères invalides
+    setSaisie(texte);
+    const normalise = texte.replace(',', '.');
+    if (NOMBRE_COMPLET.test(normalise)) {
+      const nombre = Math.min(max, Math.max(min, parseFloat(normalise)));
+      onValeur(Math.round(nombre * 100) / 100);
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={saisie}
+      onFocus={() => { enCours.current = true; }}
+      onChange={surSaisie}
+      onBlur={() => {
+        enCours.current = false;
+        // Saisie incomplète (« - », vide…) : on réaffiche la dernière valeur valide
+        setSaisie(value === null || value === undefined ? '' : String(value));
+      }}
+      aria-label={label}
+      className={`${cls.inputCellule} px-0.5 text-xs`}
+    />
+  );
+};
 
 const BoutonsAction = ({ onAnnuler, loading, recetteId }) => (
   <div className="flex gap-2.5">
@@ -251,7 +294,6 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   };  
 
   const calculateQuantiteColorant = (couleur, colorantIndex) => {
-    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton).replace(',', '.');
     const dilution = recette[`colorant_${colorantIndex}_dilution`];
     const qtePoudre = recette[`colorant_${colorantIndex}_qte_poudre`];
     const nbParts = couleur[`nb_part_colorant_${colorantIndex}`];
@@ -262,9 +304,13 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     return quantite.toFixed(3).replace('.', ',');
   };
 
-  const calculateQuantiteMordant = (pourcentage, valeurDeLaPart) => {
-    const partValue = parseFloat(valeurDeLaPart.replace(',', '.'));
-    return (pourcentage * partValue / 100).toFixed(3).replace('.', ',');
+  // Quantité de mordant = poids du tissu × % / 100 × dilution de la solution mère
+  // (même convention que les colorants : % exprimé par rapport au poids du tissu).
+  const calculateQuantiteMordant = (couleur, mordantIndex) => {
+    const pourcentage = parseFloat(couleur[`pourcent_mordant_${mordantIndex}`]) || 0;
+    const poids = parseFloat(couleur.poids_tissu) || 0;
+    const dilution = parseFloat(recette[`mordant_${mordantIndex}_dilution`]) || 1;
+    return (poids * pourcentage / 100 * dilution).toFixed(3).replace('.', ',');
   };
 
   const calculateVolumeEauInitial = (volumeDuBain, quantites) => {
@@ -359,16 +405,15 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   };
 
   const volumeEauInitial = (couleur) => {
-    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
     const quantitesColorants = [
       calculateQuantiteColorant(couleur, 1),
       calculateQuantiteColorant(couleur, 2),
       calculateQuantiteColorant(couleur, 3),
     ];
     const quantitesMordants = [
-      calculateQuantiteMordant(couleur.pourcent_mordant_1, valeurDeLaPart),
-      calculateQuantiteMordant(couleur.pourcent_mordant_2, valeurDeLaPart),
-      calculateQuantiteMordant(couleur.pourcent_mordant_3, valeurDeLaPart),
+      calculateQuantiteMordant(couleur, 1),
+      calculateQuantiteMordant(couleur, 2),
+      calculateQuantiteMordant(couleur, 3),
     ];
     const allQuantites = [...quantitesColorants, ...quantitesMordants];
     const volumeDuBain = calculateVolumeDuBain(couleur.poids_tissu);
@@ -435,16 +480,21 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
           <div className="clear-both grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="f-rapport_de_bain" className={cls.labelPetit}>Rapport de bain</label>
-              <input
-                id="f-rapport_de_bain"
-                type="number"
-                name="rapport_de_bain"
-                value={recette.rapport_de_bain ?? ''}
-                onChange={handleRecetteChange}
-                className={cls.inputMono}
-                min="1"
-                step="1"
-              />
+              <div className="flex items-center h-11 rounded-[10px] border border-lin-600 bg-lin focus-within:ring-2 focus-within:ring-sauge focus-within:bg-white">
+                <span className="pl-3 pr-0.5 font-mono text-[15px] text-encre-500" aria-hidden="true">1:</span>
+                <input
+                  id="f-rapport_de_bain"
+                  type="number"
+                  name="rapport_de_bain"
+                  value={recette.rapport_de_bain ?? ''}
+                  onChange={handleRecetteChange}
+                  aria-describedby="aide-rapport-de-bain"
+                  className="sans-fleches flex-1 min-w-0 h-full pr-3 bg-transparent font-mono text-[15px] text-encre focus:outline-none"
+                  min="1"
+                  step="1"
+                />
+              </div>
+              <span id="aide-rapport-de-bain" className="sr-only">Rapport de bain 1 pour n, saisir n</span>
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="f-nb_parts_totales" className={cls.labelPetit}>Parts totales</label>
@@ -663,7 +713,6 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             <tr key={i} className="border-t border-lin-400">
               <LigneTitre label={recette[`mordant_${i}`] || '—'} aide={getUnite(i, 'mordant')} />
               {couleurs.map((couleur, index) => {
-                const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
                 const pourcentage = couleur[`pourcent_mordant_${i}`];
                 return (
                   <td key={`mordant${i}_${index}`} className="px-2 py-2.5">
@@ -677,7 +726,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         min="0"
                         step="0.01"
                       />
-                      <div className={cls.calcule}>{calculateQuantiteMordant(pourcentage, valeurDeLaPart)}</div>
+                      <div className={cls.calcule}>{calculateQuantiteMordant(couleur, i)}</div>
                     </div>
                   </td>
                 );
@@ -745,19 +794,13 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                     ['couleur_lab_a', 'a', -128, 127],
                     ['couleur_lab_b', 'b', -128, 127],
                   ].map(([champ, nom, min, max]) => (
-                    <input
+                    <ChampLab
                       key={champ}
-                      type="number"
                       value={couleur[champ]}
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value);
-                        handleCouleurChange(index, champ, isNaN(value) ? 0 : Math.round(value * 100) / 100);
-                      }}
-                      aria-label={`${nom}, nuance ${index + 1}`}
-                      className={`${cls.inputCellule} px-0.5 text-xs`}
-                      step="0.01"
+                      onValeur={(v) => handleCouleurChange(index, champ, v)}
                       min={min}
                       max={max}
+                      label={`${nom}, nuance ${index + 1}`}
                     />
                   ))}
                 </div>

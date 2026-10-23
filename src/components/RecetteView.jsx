@@ -116,7 +116,6 @@ console.log('Table name:', getRecettesTableName(projetNom));
   };  
 
   const calculateQuantiteColorant = (couleur, colorantIndex) => {
-    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton).replace(',', '.');
     const dilution = recette[`colorant_${colorantIndex}_dilution`];
     const qtePoudre = recette[`colorant_${colorantIndex}_qte_poudre`];
     const nbParts = couleur[`nb_part_colorant_${colorantIndex}`];
@@ -127,9 +126,13 @@ console.log('Table name:', getRecettesTableName(projetNom));
     return quantite.toFixed(3).replace('.', ',');
   };
 
-  const calculateQuantiteMordant = (pourcentage, valeurDeLaPart) => {
-    const partValue = parseFloat(valeurDeLaPart.replace(',', '.'));
-    return (pourcentage * partValue / 100).toFixed(3).replace('.', ',');
+  // Quantité de mordant = poids du tissu × % / 100 × dilution de la solution mère
+  // (même convention que les colorants : % exprimé par rapport au poids du tissu).
+  const calculateQuantiteMordant = (couleur, mordantIndex) => {
+    const pourcentage = parseFloat(couleur[`pourcent_mordant_${mordantIndex}`]) || 0;
+    const poids = parseFloat(couleur.poids_tissu) || 0;
+    const dilution = parseFloat(recette[`mordant_${mordantIndex}_dilution`]) || 1;
+    return (poids * pourcentage / 100 * dilution).toFixed(3).replace('.', ',');
   };
 
   const calculateVolumeEauInitial = (volumeDuBain, quantites) => {
@@ -165,16 +168,15 @@ console.log('Table name:', getRecettesTableName(projetNom));
   ];
 
   const volumeEauInitial = (couleur) => {
-    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
     const quantitesColorants = [
       calculateQuantiteColorant(couleur, 1),
       calculateQuantiteColorant(couleur, 2),
       calculateQuantiteColorant(couleur, 3),
     ];
     const quantitesMordants = [
-      calculateQuantiteMordant(couleur.pourcent_mordant_1, valeurDeLaPart),
-      calculateQuantiteMordant(couleur.pourcent_mordant_2, valeurDeLaPart),
-      calculateQuantiteMordant(couleur.pourcent_mordant_3, valeurDeLaPart),
+      calculateQuantiteMordant(couleur, 1),
+      calculateQuantiteMordant(couleur, 2),
+      calculateQuantiteMordant(couleur, 3),
     ];
     const allQuantites = [...quantitesColorants, ...quantitesMordants];
     const volumeDuBain = calculateVolumeDuBain(couleur.poids_tissu);
@@ -291,7 +293,9 @@ console.log('Table name:', getRecettesTableName(projetNom));
           <div className="grid grid-cols-2 gap-3">
             <div className="px-4 py-3.5 rounded-xl bg-lin-200">
               <div className="text-[13px] text-encre-500">Rapport de bain</div>
-              <div className="mt-1 font-mono text-[22px] font-medium">{recette.rapport_de_bain || '—'}</div>
+              <div className="mt-1 font-mono text-[22px] font-medium">
+                {recette.rapport_de_bain ? `1:${recette.rapport_de_bain}` : '—'}
+              </div>
             </div>
             <div className="px-4 py-3.5 rounded-xl bg-lin-200">
               <div className="text-[13px] text-encre-500">Parts totales</div>
@@ -410,13 +414,12 @@ console.log('Table name:', getRecettesTableName(projetNom));
                     <span className="block text-xs text-encre-500">{getUnite(i, 'mordant')}</span>
                   </th>
                   {couleurs.map((couleur) => {
-                    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
                     const pourcentage = couleur[`pourcent_mordant_${i}`];
                     return (
                       <Fragment key={couleur.couleur_numero}>
                         <td className="px-2 py-3.5 text-center font-mono text-encre-500">{pourcentage}</td>
                         <td className="px-2 py-3.5 text-center font-mono font-medium">
-                          {calculateQuantiteMordant(pourcentage, valeurDeLaPart)}
+                          {calculateQuantiteMordant(couleur, i)}
                         </td>
                       </Fragment>
                     );

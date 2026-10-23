@@ -1,10 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { cls } from './ui';
 
 export default function CreerProjetModal({ onClose, onProjetCreated }) {
   const [nom, setNom] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Fermer avec la touche Échap
+  useEffect(() => {
+    const surTouche = (e) => {
+      if (e.key === 'Escape' && !loading) onClose();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [onClose, loading]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,35 +76,49 @@ export default function CreerProjetModal({ onClose, onProjetCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white p-6 rounded shadow-md w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Créer un projet</h2>
-        {error && <div className="text-red-500 mb-4">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Nom du projet</label>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-encre/40"
+      onMouseDown={(e) => {
+        // Clic sur le fond (hors de la fenêtre) : fermer
+        if (e.target === e.currentTarget && !loading) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titre-creer-projet"
+        className="w-full max-w-md rounded-[20px] border border-lin-500 bg-lin-50 p-7 shadow-xl flex flex-col gap-6"
+      >
+        <div className="flex flex-col gap-2">
+          <h2 id="titre-creer-projet" className={`m-0 ${cls.h3}`}>Créer un projet</h2>
+          <p className="m-0 text-sm text-encre-500 leading-relaxed">
+            Le projet aura son propre nuancier et ses propres fiches recettes.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="nom-projet" className={cls.label}>Nom du projet</label>
             <input
+              id="nom-projet"
               type="text"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
+              placeholder="ex. Atelier Garance"
               required
-              className="w-full p-2 border rounded"
+              autoFocus
+              className={`${cls.input} h-12 px-4 text-base`}
             />
           </div>
-          <div className="flex justify-end space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-gray-300 p-2 rounded hover:bg-gray-400"
-            >
+
+          {error && <p role="alert" className={`m-0 ${cls.erreur}`}>{error}</p>}
+
+          <div className="flex justify-end gap-2.5">
+            <button type="button" onClick={onClose} disabled={loading} className={cls.btnSecondaire}>
               Annuler
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
-            >
-              {loading ? 'Création en cours...' : 'Créer'}
+            <button type="submit" disabled={loading} className={cls.btnPrimaire}>
+              {loading ? 'Création en cours…' : 'Créer le projet'}
             </button>
           </div>
         </form>

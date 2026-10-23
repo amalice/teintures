@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route, Navigate, Link, NavLink } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link, NavLink, useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { useEffect, useState, createContext } from 'react';
 import Login from './pages/Login';
@@ -26,6 +26,15 @@ const classeLien = ({ isActive }) =>
       ? 'bg-sauge-pale text-encre font-medium'
       : 'text-encre-600 hover:bg-lin-300 hover:text-encre'
   }`;
+
+// Revenir en haut de page à chaque changement de page
+const RetourEnHaut = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 const initiales = (email) => {
   if (!email) return '?';
@@ -135,6 +144,7 @@ function App() {
 
   return (
     <Router>
+      <RetourEnHaut />
       {session && (
         <header className="navbar no-print border-b border-lin-500 bg-lin">
           <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center gap-4">
