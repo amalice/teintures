@@ -1,14 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
-import { useNavigate } from 'react-router-dom';
+import { rechercherRecetteParNumero } from '../utils/recettes';
+import { useNavigate, Link } from 'react-router-dom';
+import { cls, Chargement, Message } from './ui';
 
-const Nuancier = ({ projetId, projetNom }) => {  
+const TOUS = 'Tous';
+
+// Angle de teinte (0-360°) calculé depuis a* et b*
+const teinte = (c) => {
+  const a = Number(c.lab_a) || 0;
+  const b = Number(c.lab_b) || 0;
+  return (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+};
+
+const Nuancier = ({ projetId, projetNom }) => {
   const navigate = useNavigate();
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [numeroFicheRecherche, setNumeroFicheRecherche] = useState('');
+  const [erreurRecherche, setErreurRecherche] = useState('');
+  const [filtre, setFiltre] = useState(TOUS);
+  const [tri, setTri] = useState('fiche');
 
   useEffect(() => {
     const fetchCouleurs = async () => {
@@ -49,6 +63,7 @@ const Nuancier = ({ projetId, projetNom }) => {
               lab_L: row.couleur_lab_l,
               lab_a: row.couleur_lab_a,
               lab_b: row.couleur_lab_b,
+              listeColorants: [row.colorant_1, row.colorant_2, row.colorant_3].filter(c => c),
               colorants: [row.colorant_1, row.colorant_2, row.colorant_3]
                 .filter(c => c)
                 .join(', '),
@@ -68,87 +83,132 @@ const Nuancier = ({ projetId, projetNom }) => {
     fetchCouleurs();
   }, [projetId, projetNom]);
 
-  const handleSearchByNumeroFiche = async (numero) => {
-    if (!numero || !projetNom) return;
+  // Colorants présents dans le projet, pour les filtres
+  const colorantsDisponibles = useMemo(() => {
+    const set = new Set();
+    couleurs.forEach((c) => c.listeColorants.forEach((nom) => set.add(nom)));
+    return [TOUS, ...Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'))];
+  }, [couleurs]);
 
-    try {
-      const tableName = getRecettesTableName(projetNom);
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('recette_id')
-        .eq('numero_fiche', numero)
-        .limit(1);
-
-      if (error) {
-        console.error('Erreur Supabase:', error);
-        alert(`Erreur : ${error.message}`);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        navigate(`/recette/${data[0].recette_id}`);  // Navigue vers l'URL de la recette
-      } else {
-        alert('Aucune recette trouvée avec ce numéro de fiche.');
-      }
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert('Une erreur est survenue.');
+  const couleursAffichees = useMemo(() => {
+    const filtrees = filtre === TOUS ? couleurs : couleurs.filter((c) => c.listeColorants.includes(filtre));
+    const triees = [...filtrees];
+    if (tri === 'couleur') {
+      triees.sort((a, b) => teinte(a) - teinte(b) || (Number(b.lab_L) || 0) - (Number(a.lab_L) || 0));
+    } else {
+      triees.sort((a, b) =>
+        String(a.fiche).localeCompare(String(b.fiche), 'fr', { numeric: true }) ||
+        (a.indexCouleur || 0) - (b.indexCouleur || 0)
+      );
     }
+    return triees;
+  }, [couleurs, filtre, tri]);
+
+  const handleSearchByNumeroFiche = async (e) => {
+    e.preventDefault();
+    setErreurRecherche('');
+    const { recetteId, erreur } = await rechercherRecetteParNumero(projetNom, numeroFicheRecherche.trim());
+    if (recetteId) navigate(`/recette/${recetteId}`);  // Navigue vers l'URL de la recette
+    else if (erreur) setErreurRecherche(erreur);
   };
 
   if (loading) {
-    return <div className="text-center py-4">Chargement du nuancier...</div>;
+    return <Chargement texte="Chargement du nuancier…" />;
   }
 
   if (error) {
-    return <div className="text-center py-4 text-red-500">{error}</div>;
+    return <Message erreur={error !== 'Projet non sélectionné.'}>{error === 'Projet non sélectionné.' ? 'Sélectionnez un projet dans le menu en haut à droite.' : error}</Message>;
   }
 
   return (
-    <div className="p-4">
-      {/* Barre de recherche par numéro de fiche (uniquement ici) */}
-      {projetId && (
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg mb-6">
-          <div className="flex flex-col sm:flex-row gap-2">
+    <div className={`${cls.page} pt-14 flex flex-col gap-8`}>
+      <div className="flex flex-wrap gap-6 justify-between items-end">
+        <div className="flex flex-col gap-2.5">
+          <h1 className={`m-0 ${cls.h1}`}>Nuancier</h1>
+          <p className="m-0 text-base text-encre-500">
+            {couleursAffichees.length} couleur{couleursAffichees.length > 1 ? 's' : ''} · {projetNom}
+          </p>
+        </div>
+
+        {/* Recherche par numéro de fiche */}
+        <form onSubmit={handleSearchByNumeroFiche} className="flex flex-col gap-1.5 flex-[0_1_420px]">
+          <div className="flex gap-2">
+            <label htmlFor="numero-fiche" className="sr-only">Numéro de fiche</label>
             <input
+              id="numero-fiche"
               type="text"
-              placeholder="Rechercher par numéro de fiche (ex: 260405)"
+              placeholder="N° de fiche, ex. 260405"
               value={numeroFicheRecherche}
               onChange={(e) => setNumeroFicheRecherche(e.target.value)}
-              className="flex-1 p-2 border rounded"
+              className={`${cls.inputMono} flex-1 min-w-0 px-4 bg-lin-50`}
             />
-            <button
-              onClick={() => handleSearchByNumeroFiche(numeroFicheRecherche)}
-              className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-            >
-              Rechercher
-            </button>
+            <button type="submit" className={cls.btnPrimaire}>Ouvrir</button>
           </div>
-        </div>
-      )}
+          {erreurRecherche && <p className="m-0 text-sm text-alerte-texte">{erreurRecherche}</p>}
+        </form>
+      </div>
 
-      {couleurs.length === 0 ? (
-        <div className="text-center py-4">Aucune couleur trouvée pour ce projet.</div>
-      ) : (
-        <div className="flex flex-wrap gap-4">
-          {couleurs.map((couleur, index) => (
-            <div key={index} className="text-center border rounded p-4 w-48">
-              <div
-                className="w-24 h-24 mx-auto mb-2 rounded shadow"
-                style={{ backgroundColor: couleur.hex || '#FFFFFF' }}
-              ></div>
-              <p><strong>Fiche:</strong> {couleur.fiche}</p>
-              <p><strong>Couleur:</strong> {couleur.indexCouleur}</p>
-              <p><strong>HEX:</strong> {couleur.hex}</p>
-              <p><strong>Lab:</strong> {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}</p>
-              <p><strong>Colorants:</strong> {couleur.colorants || '--'}</p>
+      <div className="flex flex-wrap gap-4 justify-between items-center pb-2 border-b border-lin-500">
+        <div role="group" aria-label="Filtrer par colorant" className="flex flex-wrap gap-2">
+          {colorantsDisponibles.map((nom) => {
+            const actif = nom === filtre;
+            return (
               <button
-                onClick={() => navigate(`/recette/${couleur.recette_id}`)}  // Navigue vers l'URL de la recette
-                className="mt-2 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
+                type="button"
+                key={nom}
+                onClick={() => setFiltre(nom)}
+                aria-pressed={actif}
+                className={`h-10 px-4 rounded-full border text-sm font-medium ${
+                  actif
+                    ? 'bg-sauge border-sauge text-lin-50'
+                    : 'bg-lin-50 border-lin-600 text-encre-700 hover:border-sauge'
+                }`}
               >
-                Voir recette
+                {nom}
               </button>
-            </div>
+            );
+          })}
+        </div>
+        <div role="group" aria-label="Trier" className="flex gap-1 p-1 rounded-full bg-lin-300">
+          {[['fiche', 'Par fiche'], ['couleur', 'Par couleur']].map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              onClick={() => setTri(id)}
+              aria-pressed={tri === id}
+              className={`h-9 px-3.5 rounded-full text-[13px] font-medium text-encre ${tri === id ? 'bg-lin-50' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {couleursAffichees.length === 0 ? (
+        <div className="text-center py-4 text-encre-500">Aucune couleur trouvée pour ce projet.</div>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-5 gap-y-7">
+          {couleursAffichees.map((couleur, index) => (
+            <Link
+              key={index}
+              to={`/recette/${couleur.recette_id}`}  // Navigue vers l'URL de la recette
+              className="group flex flex-col gap-3 no-underline text-encre"
+            >
+              <span
+                className="block aspect-[4/3] rounded-[14px] border border-black/5 transition-transform group-hover:-translate-y-0.5"
+                style={{ backgroundColor: couleur.hex || '#FFFFFF' }}
+              />
+              <span className="flex flex-col gap-1 px-0.5">
+                <span className="flex justify-between items-baseline gap-2">
+                  <span className="text-[15px] font-medium">Fiche {couleur.fiche}</span>
+                  <span className="text-[13px] text-encre-500">n° {couleur.indexCouleur}</span>
+                </span>
+                <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
+                <span className="font-mono text-xs text-encre-500">
+                  {couleur.hex} · Lab {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}
+                </span>
+              </span>
+            </Link>
           ))}
         </div>
       )}

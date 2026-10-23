@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import chroma from 'chroma-js';
+import { cls, Chargement, Message } from './ui';
 
 // ========== CONVERSION COULEUR ==========
 const hexToRgb = (hex) => {
@@ -105,12 +107,12 @@ const deltaE2000 = (lab1, lab2) => {
 
 // ========== COMPOSANT ==========
 const RechercheCouleur = ({ projetId, projetNom }) => {
-  const navigate = useNavigate(); // ✅ Déclarer navigate à l'intérieur du composant
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState('hex');
   const [results, setResults] = useState([]);
+  const [cible, setCible] = useState(null); // couleur recherchée { hex, lab }
 
   // Récupération des couleurs
   useEffect(() => {
@@ -155,7 +157,9 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
     fetchCouleurs();
   }, [projetNom]);
 
-  const handleSearch = () => {
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    setCible(null);
     if (!query.trim()) {
       setResults([]);
       return;
@@ -179,6 +183,15 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
       queryLab = parts;
     }
 
+    // Couleur cible affichée à côté de chaque résultat
+    let cibleHex = null;
+    try {
+      cibleHex = chroma.lab(queryLab[0], queryLab[1], queryLab[2]).hex().toUpperCase();
+    } catch {
+      cibleHex = null;
+    }
+    setCible({ hex: cibleHex, lab: queryLab });
+
     // Calcul des distances et tri
     const results = couleurs
       .map(couleur => {
@@ -194,63 +207,123 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
     setResults(results);
   };
 
-  if (loading) return <div className="text-center py-4">Chargement du nuancier...</div>;
+  const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(1) : '—');
+
+  // Aperçu en direct de la saisie (avant même de lancer la recherche)
+  let apercu = null;
+  if (searchType === 'hex') {
+    const lab = query.trim() ? hexToLab(query.trim()) : null;
+    if (lab && lab.every(Number.isFinite) && chroma.valid(query.trim())) {
+      apercu = { hex: chroma(query.trim()).hex().toUpperCase(), autre: `Lab ${lab.map(fmt).join(', ')}` };
+    }
+  } else {
+    const parts = query.split(',').map((p) => parseFloat(p.trim()));
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      try {
+        const hex = chroma.lab(parts[0], parts[1], parts[2]).hex().toUpperCase();
+        apercu = { hex, autre: `HEX ${hex}` };
+      } catch {
+        apercu = null;
+      }
+    }
+  }
+
+  if (loading) return <Chargement texte="Chargement du nuancier…" />;
+  if (!projetNom) return <Message>Sélectionnez un projet dans le menu en haut à droite.</Message>;
 
   return (
-    <div className="p-4">
-      <div className="flex space-x-2 mb-4">
-        <select
-          value={searchType}
-          onChange={(e) => setSearchType(e.target.value)}
-          className="p-2 border rounded"
-        >
-          <option value="hex">Rechercher par HEX</option>
-          <option value="lab">Rechercher par Lab (L,a,b)</option>
-        </select>
-
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchType === 'hex' ? 'Ex: #FF0000 ou FF0000' : 'Ex: 50, 20, -10'}
-          className="flex-1 p-2 border rounded"
-        />
-
-        <button
-          onClick={handleSearch}
-          className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-        >
-          Rechercher
-        </button>
+    <div className={`${cls.page} pt-14 flex flex-col gap-10`}>
+      <div className="flex flex-col gap-2.5">
+        <h1 className={`m-0 ${cls.h1}`}>Recherche par teinte</h1>
+        <p className="m-0 text-base text-encre-500 max-w-xl leading-relaxed">
+          Entrez une couleur cible : les recettes du projet sont classées par écart visuel (ΔE2000).
+        </p>
       </div>
 
-      {results.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Résultats (10 couleurs les plus proches triées par similarité):</h3>
-          <div className="flex flex-wrap gap-4">
-            {results.map((couleur, index) => (
-              <div key={index} className="text-center border rounded p-4 w-48">
-                <div
-                  className="w-24 h-24 mx-auto mb-2 rounded shadow"
-                  style={{ backgroundColor: couleur.hex || '#FFFFFF' }}
-                ></div>
-                <p><strong>Fiche:</strong> {couleur.fiche}</p>
-                <p><strong>Couleur:</strong> {couleur.indexCouleur}</p>
-                <p><strong>HEX:</strong> {couleur.hex}</p>
-                <p><strong>Lab:</strong> {couleur.lab_L.toFixed(1)}, {couleur.lab_a.toFixed(1)}, {couleur.lab_b.toFixed(1)}</p>
-                <p><strong>Colorants:</strong> {couleur.colorants || '--'}</p>
-                <p><strong>ΔE2000:</strong> {couleur.distance.toFixed(2)}</p>
-                <button
-                  onClick={() => navigate(`/recette/${couleur.recette_id}`)} // ✅ Utilise navigate pour aller vers la recette
-                  className="mt-2 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
-                >
-                  Voir recette
-                </button>
-              </div>
+      <div className="flex flex-wrap gap-8 items-start">
+        <form
+          onSubmit={handleSearch}
+          className={`${cls.carte} flex-[1_1_320px] max-w-sm flex flex-col gap-5 p-7`}
+        >
+          <div
+            className="h-44 rounded-[14px] border border-black/5 flex items-center justify-center text-sm text-encre-500"
+            style={{ backgroundColor: apercu ? apercu.hex : undefined }}
+          >
+            {!apercu && 'Aperçu de la couleur'}
+          </div>
+
+          <div role="group" aria-label="Format de la couleur" className="flex gap-1 p-1 rounded-full bg-lin-300">
+            {[['hex', 'HEX'], ['lab', 'Lab']].map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                onClick={() => setSearchType(id)}
+                aria-pressed={searchType === id}
+                className={`flex-1 h-10 rounded-full text-sm font-medium text-encre ${searchType === id ? 'bg-lin-50' : ''}`}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        </div>
-      )}
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="couleur-cible" className={cls.label}>
+              {searchType === 'hex' ? 'Couleur HEX' : 'Couleur Lab (L, a, b)'}
+            </label>
+            <input
+              id="couleur-cible"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchType === 'hex' ? 'Ex: #FF0000 ou FF0000' : 'Ex: 50, 20, -10'}
+              className={`${cls.inputMono} h-12 px-4 text-base`}
+            />
+            <span className="font-mono text-xs text-encre-500 min-h-[16px]">{apercu ? apercu.autre : ''}</span>
+          </div>
+
+          <button type="submit" className={`${cls.btnPrimaire} h-12 text-base`}>Rechercher</button>
+        </form>
+
+        <section aria-label="Résultats" className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">
+          {results.length > 0 ? (
+            <>
+              <div className="flex flex-wrap justify-between items-baseline gap-4">
+                <h2 className={`m-0 ${cls.h3} text-[26px]`}>Couleurs les plus proches</h2>
+                <p className="m-0 text-sm text-encre-500">{results.length} résultats, triés par similarité</p>
+              </div>
+              <div className="rounded-[20px] border border-lin-500 bg-lin-100 overflow-hidden">
+                {results.map((couleur, index) => (
+                  <Link
+                    key={index}
+                    to={`/recette/${couleur.recette_id}`}
+                    className="flex flex-wrap items-center gap-5 px-6 py-4 border-b last:border-b-0 border-lin-400 no-underline text-encre hover:bg-lin-50"
+                  >
+                    <span className="w-6 font-mono text-sm font-medium text-encre-500">{index + 1}</span>
+                    <span aria-hidden="true" className="flex w-28 h-14 rounded-xl overflow-hidden flex-none border border-black/5">
+                      <span className="flex-1" style={{ backgroundColor: cible?.hex || '#FFFFFF' }} />
+                      <span className="flex-1" style={{ backgroundColor: couleur.hex || '#FFFFFF' }} />
+                    </span>
+                    <span className="flex-[1_1_200px] flex flex-col gap-1 min-w-0">
+                      <span className="text-base font-medium">Fiche {couleur.fiche} · n° {couleur.indexCouleur}</span>
+                      <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
+                      <span className="font-mono text-xs text-encre-500">
+                        {couleur.hex} · Lab {fmt(couleur.lab_L)}, {fmt(couleur.lab_a)}, {fmt(couleur.lab_b)}
+                      </span>
+                    </span>
+                    <span className="min-w-[110px] text-right font-mono text-lg font-medium">
+                      ΔE {couleur.distance.toFixed(2).replace('.', ',')}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-lin-600 px-6 py-16 text-center text-encre-500">
+              {cible ? 'Aucun résultat pour cette couleur.' : 'Les recettes les plus proches s’afficheront ici.'}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 };
