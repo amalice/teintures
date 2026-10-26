@@ -4,6 +4,7 @@ import { getRecettesTableName } from '../utils/tableNames';
 import { formaterDate } from '../utils/recettes';
 import { useNavigate, Link } from 'react-router-dom';
 import { cls, Icone, PastilleNuance, Chargement, Message } from './ui';
+import { useLangue, useNombre } from '../i18n';
 
 const RecetteView = ({ projetId, projetNom, recetteId, onEdit }) => {
   const tableName = getRecettesTableName(projetNom);
@@ -12,6 +13,8 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { t, langue } = useLangue();
+  const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
     console.log('recetteId:', recetteId);
@@ -75,7 +78,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
             bleu_depart: row.bleu_depart,
           })));
         } else {
-          setError('Recette introuvable');
+          setError(t('fiche.introuvable'));
         }
       } catch (err) {
         setError(err.message);
@@ -146,25 +149,25 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
   if (loading) return <Chargement />;
   if (error) return <Message erreur>{error}</Message>;
-  if (!recette) return <Message>Aucune recette sélectionnée.</Message>;
+  if (!recette) return <Message>{t('fiche.aucuneSelectionnee')}</Message>;
 
   const indexColorants = [1, 2, 3].filter((i) => recette[`colorant_${i}`]);
   const indexMordants = [1, 2, 3].filter((i) => recette[`mordant_${i}`]);
   const nombre = (v, decimales) =>
-    v === null || v === undefined || v === '' ? '—' : Number(v).toFixed(decimales).replace('.', ',');
+    v === null || v === undefined || v === '' ? '—' : aff(Number(v).toFixed(decimales));
 
   const lignesNuances = [
     {
-      label: 'Nombre de parts',
+      label: t('fiche.nbParts'),
       aide: indexColorants.map((i) => recette[`colorant_${i}`]).join(' · '),
       valeur: (c) => indexColorants.map((i) => c[`nb_part_colorant_${i}`] ?? 0).join(' · ') || '—',
     },
-    { label: 'Valeur de la part', aide: 'calculée', valeur: (c) => calculateValeurDeLaPart(c.profondeur_ton) },
-    { label: 'Profondeur de ton', aide: '', valeur: (c) => nombre(c.profondeur_ton, 2) },
-    { label: 'Poids du tissu', aide: 'g', valeur: (c) => c.poids_tissu ?? '—' },
-    { label: 'Volume du bain', aide: 'ml, calculé', valeur: (c) => calculateVolumeDuBain(c.poids_tissu) },
-    { label: 'Bleu de départ', aide: '', valeur: (c) => c.bleu_depart || '—' },
-    { label: 'Informations', aide: '', valeur: (c) => c.info || '—' },
+    { label: t('fiche.valeurPart'), aide: t('fiche.calculee'), valeur: (c) => aff(calculateValeurDeLaPart(c.profondeur_ton)) },
+    { label: t('fiche.profondeur'), aide: '', valeur: (c) => nombre(c.profondeur_ton, 2) },
+    { label: t('fiche.poids'), aide: 'g', valeur: (c) => aff(c.poids_tissu ?? '—') },
+    { label: t('fiche.volumeBain'), aide: t('fiche.mlCalcule'), valeur: (c) => aff(calculateVolumeDuBain(c.poids_tissu)) },
+    { label: t('fiche.bleuDepart'), aide: '', valeur: (c) => c.bleu_depart || '—' },
+    { label: t('fiche.infosNuance'), aide: '', valeur: (c) => c.info || '—' },
   ];
 
   const volumeEauInitial = (couleur) => {
@@ -209,8 +212,8 @@ console.log('Table name:', getRecettesTableName(projetNom));
         <tr>
           {couleurs.map((c) => (
             <Fragment key={c.couleur_numero}>
-              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">%</th>
-              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">quantité</th>
+              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">{t('fiche.pourcent')}</th>
+              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">{t('fiche.quantite')}</th>
             </Fragment>
           ))}
         </tr>
@@ -229,33 +232,33 @@ console.log('Table name:', getRecettesTableName(projetNom));
     <div className={`${cls.page} print-container flex flex-col gap-12 print:gap-2`}>
       {/* ===== EN-TÊTE ===== */}
       <div className="flex flex-col gap-5">
-        <nav aria-label="Fil d’Ariane" className="no-print flex gap-2 text-sm text-encre-500">
-          <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">Nuancier</Link>
+        <nav aria-label={t('commun.filAriane')} className="no-print flex gap-2 text-sm text-encre-500">
+          <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">{t('nav.nuancier')}</Link>
           <span aria-hidden="true">/</span>
-          <span>Fiche {recette.numero_fiche}</span>
+          <span>{t('commun.fiche', { n: recette.numero_fiche })}</span>
         </nav>
         <div className="flex flex-wrap gap-6 justify-between items-end">
           <div className="flex flex-col gap-2.5">
-            <p className="m-0 text-sm text-encre-500">Fiche recette · {formaterDate(recette.date)}</p>
-            <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">Fiche {recette.numero_fiche}</h1>
+            <p className="m-0 text-sm text-encre-500">{t('fiche.sousTitre', { date: formaterDate(recette.date, langue) })}</p>
+            <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">{t('commun.fiche', { n: recette.numero_fiche })}</h1>
           </div>
           <div className="flex gap-2.5">
             <button type="button" onClick={() => window.print()} className={cls.btnSecondaire}>
-              <Icone.Imprimante />Imprimer
+              <Icone.Imprimante />{t('fiche.imprimer')}
             </button>
             <button
               type="button"
               onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
               className={cls.btnPrimaire}
             >
-              <Icone.Crayon />Modifier
+              <Icone.Crayon />{t('fiche.modifier')}
             </button>
           </div>
         </div>
       </div>
 
       {/* ===== COULEURS OBTENUES ===== */}
-      <section aria-label="Couleurs obtenues" className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+      <section aria-label={t('fiche.couleurs')} className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
         {couleurs.map((c) => (
           <div key={c.couleur_numero} className="flex flex-col gap-2.5">
             <div
@@ -277,37 +280,37 @@ console.log('Table name:', getRecettesTableName(projetNom));
       {/* ===== INFORMATIONS + BAIN ===== */}
       <section className="flex flex-wrap gap-6">
         <div className={`${cls.carte} flex-[1_1_520px] p-7 flex flex-col gap-5`}>
-          <h2 className={`m-0 ${cls.h3}`}>Informations</h2>
+          <h2 className={`m-0 ${cls.h3}`}>{t('fiche.informations')}</h2>
           <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-5">
-            <Info label="Nom">{recette.nom}</Info>
-            <Info label="Date">{formaterDate(recette.date)}</Info>
-            <Info label="Objet">{recette.objet}</Info>
-            <Info label="Matière">{recette.matiere}</Info>
-            <Info label="Pré-mordançage" large>{recette.pre_mordancage}</Info>
-            <Info label="Observations" large>{recette.observations}</Info>
+            <Info label={t('fiche.nom')}>{recette.nom}</Info>
+            <Info label={t('fiche.date')}>{formaterDate(recette.date, langue)}</Info>
+            <Info label={t('fiche.objet')}>{recette.objet}</Info>
+            <Info label={t('fiche.matiere')}>{recette.matiere}</Info>
+            <Info label={t('fiche.preMordancage')} large>{recette.pre_mordancage}</Info>
+            <Info label={t('fiche.observations')} large>{recette.observations}</Info>
           </dl>
         </div>
 
         <div className={`${cls.carte} flex-[1_1_400px] p-7 flex flex-col gap-5`}>
-          <h2 className={`m-0 ${cls.h3}`}>Bain</h2>
+          <h2 className={`m-0 ${cls.h3}`}>{t('fiche.bain')}</h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="px-4 py-3.5 rounded-xl bg-lin-200">
-              <div className="text-[13px] text-encre-500">Rapport de bain</div>
+              <div className="text-[13px] text-encre-500">{t('fiche.rapportDeBain')}</div>
               <div className="mt-1 font-mono text-[22px] font-medium">
                 {recette.rapport_de_bain ? `1:${recette.rapport_de_bain}` : '—'}
               </div>
             </div>
             <div className="px-4 py-3.5 rounded-xl bg-lin-200">
-              <div className="text-[13px] text-encre-500">Parts totales</div>
+              <div className="text-[13px] text-encre-500">{t('fiche.partsTotales')}</div>
               <div className="mt-1 font-mono text-[22px] font-medium">{recette.nb_parts_totales ?? '—'}</div>
             </div>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-encre-500">
-                <th className="py-2 font-medium text-[13px]">Colorant</th>
-                <th className="py-2 font-medium text-[13px] text-right">[C] poudre</th>
-                <th className="py-2 font-medium text-[13px] text-right">Dil. sol. mère</th>
+                <th className="py-2 font-medium text-[13px]">{t('fiche.colorant')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.poudre')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
               </tr>
             </thead>
             <tbody>
@@ -326,8 +329,8 @@ console.log('Table name:', getRecettesTableName(projetNom));
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-encre-500">
-                <th className="py-2 font-medium text-[13px]">Mordant / nuançage</th>
-                <th className="py-2 font-medium text-[13px] text-right">Dil. sol. mère</th>
+                <th className="py-2 font-medium text-[13px]">{t('fiche.mordantNuancage')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
               </tr>
             </thead>
             <tbody>
@@ -347,10 +350,10 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
       {/* ===== NUANCES ===== */}
       <section className="flex flex-col gap-4">
-        <h2 className={`m-0 ${cls.h2}`}>Nuances</h2>
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.nuances')}</h2>
         <div className={cls.tableau}>
           <table className="w-full min-w-[900px] text-sm">
-            <EnTeteNuances premiere="Nuance" />
+            <EnTeteNuances premiere={t('fiche.nuance')} />
             <tbody>
               {lignesNuances.map((ligne) => (
                 <tr key={ligne.label} className="border-t border-lin-400">
@@ -372,10 +375,10 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
       {/* ===== COLORANTS ===== */}
       <section className="flex flex-col gap-4">
-        <h2 className={`m-0 ${cls.h2}`}>Colorants</h2>
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.colorants')}</h2>
         <div className={cls.tableau}>
           <table className="w-full min-w-[1000px] text-sm">
-            <EnTeteNuances premiere="Colorant" sousColonnes />
+            <EnTeteNuances premiere={t('fiche.colorant')} sousColonnes />
             <tbody>
               {indexColorants.map((i) => (
                 <tr key={i} className="border-t border-lin-400">
@@ -386,10 +389,10 @@ console.log('Table name:', getRecettesTableName(projetNom));
                   {couleurs.map((couleur) => (
                     <Fragment key={couleur.couleur_numero}>
                       <td className="px-2 py-3.5 text-center font-mono text-encre-500">
-                        {calculatePourcentColorant(couleur, i)}
+                        {aff(calculatePourcentColorant(couleur, i))}
                       </td>
                       <td className="px-2 py-3.5 text-center font-mono font-medium">
-                        {calculateQuantiteColorant(couleur, i)}
+                        {aff(calculateQuantiteColorant(couleur, i))}
                       </td>
                     </Fragment>
                   ))}
@@ -402,10 +405,10 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
       {/* ===== MORDANTS ===== */}
       <section className="flex flex-col gap-4">
-        <h2 className={`m-0 ${cls.h2}`}>Mordants</h2>
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.mordants')}</h2>
         <div className={cls.tableau}>
           <table className="w-full min-w-[1000px] text-sm">
-            <EnTeteNuances premiere="Mordant" sousColonnes />
+            <EnTeteNuances premiere={t('fiche.mordant')} sousColonnes />
             <tbody>
               {indexMordants.map((i) => (
                 <tr key={i} className="border-t border-lin-400">
@@ -417,9 +420,9 @@ console.log('Table name:', getRecettesTableName(projetNom));
                     const pourcentage = couleur[`pourcent_mordant_${i}`];
                     return (
                       <Fragment key={couleur.couleur_numero}>
-                        <td className="px-2 py-3.5 text-center font-mono text-encre-500">{pourcentage}</td>
+                        <td className="px-2 py-3.5 text-center font-mono text-encre-500">{aff(pourcentage)}</td>
                         <td className="px-2 py-3.5 text-center font-mono font-medium">
-                          {calculateQuantiteMordant(couleur, i)}
+                          {aff(calculateQuantiteMordant(couleur, i))}
                         </td>
                       </Fragment>
                     );
@@ -434,8 +437,8 @@ console.log('Table name:', getRecettesTableName(projetNom));
       {/* ===== VOLUME D'EAU INITIAL ===== */}
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap justify-between items-baseline gap-4">
-          <h2 className={`m-0 ${cls.h2}`}>Volume d’eau initial</h2>
-          <p className="m-0 text-sm text-encre-500">Volume du bain moins colorants et mordants, en ml</p>
+          <h2 className={`m-0 ${cls.h2}`}>{t('fiche.volumeEau')}</h2>
+          <p className="m-0 text-sm text-encre-500">{t('fiche.volumeEauNote')}</p>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
           {couleurs.map((c) => (
@@ -446,7 +449,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
               >
                 {c.couleur_numero}
               </span>
-              <span className="font-mono text-[22px] font-medium">{volumeEauInitial(c)}</span>
+              <span className="font-mono text-[22px] font-medium">{aff(volumeEauInitial(c))}</span>
             </div>
           ))}
         </div>

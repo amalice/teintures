@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { useT } from '../i18n';
 
 export default function AjouterUtilisateurModal({ onClose, onUtilisateurAjoute }) {
+  const t = useT();
   const [email, setEmail] = useState('');
   const [nom, setNom] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export default function AjouterUtilisateurModal({ onClose, onUtilisateurAjoute }
         throw utilisateurError;
       }
 
-      alert('Utilisateur ajouté avec succès !');
+      alert(t('ajoutUtilisateur.succes'));
       onUtilisateurAjoute();
       onClose();
     } catch (err) {
@@ -39,13 +41,13 @@ export default function AjouterUtilisateurModal({ onClose, onUtilisateurAjoute }
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="bg-white p-6 rounded shadow-md w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Ajouter un utilisateur</h2>
+        <h2 className="text-xl font-bold mb-4">{t('ajoutUtilisateur.titre')}</h2>
 
         {error && <div className="text-red-500 mb-4">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Email</label>
+            <label className="block text-gray-700 mb-2">{t('ajoutUtilisateur.email')}</label>
             <input
               type="email"
               value={email}
@@ -56,7 +58,7 @@ export default function AjouterUtilisateurModal({ onClose, onUtilisateurAjoute }
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Nom</label>
+            <label className="block text-gray-700 mb-2">{t('ajoutUtilisateur.nom')}</label>
             <input
               type="text"
               value={nom}
@@ -72,14 +74,14 @@ export default function AjouterUtilisateurModal({ onClose, onUtilisateurAjoute }
               onClick={onClose}
               className="bg-gray-300 p-2 rounded hover:bg-gray-400"
             >
-              Annuler
+              {t('commun.annuler')}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
             >
-              {loading ? 'Ajout en cours...' : 'Ajouter'}
+              {loading ? t('ajoutUtilisateur.ajout') : t('ajoutUtilisateur.ajouter')}
             </button>
           </div>
         </form>

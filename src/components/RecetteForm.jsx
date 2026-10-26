@@ -4,6 +4,7 @@ import chroma from 'chroma-js';
 import { getRecettesTableName } from '../utils/tableNames';
 import { useNavigate, Link } from 'react-router-dom';
 import { cls, Icone, PastilleNuance } from './ui';
+import { useT, useNombre } from '../i18n';
 
 // ===== Petits composants de mise en page =====
 // Définis hors du composant principal pour que React ne recrée pas les champs
@@ -25,7 +26,9 @@ const ChampInfo = ({ name, label, value, onChange, type = 'text', required = fal
 );
 
 // En-tête commun aux tableaux : une colonne par nuance
-const EnTeteNuances = ({ couleurs, premiere, sousColonnes = false }) => (
+const EnTeteNuances = ({ couleurs, premiere, sousColonnes = false }) => {
+  const t = useT();
+  return (
   <thead>
     <tr>
       <th scope="col" className="text-left px-5 pt-4 pb-2 font-medium text-[13px] text-encre-500 w-48">{premiere}</th>
@@ -34,14 +37,15 @@ const EnTeteNuances = ({ couleurs, premiere, sousColonnes = false }) => (
           <PastilleNuance hex={c.couleur_hex} numero={c.couleur_numero} />
           {sousColonnes && (
             <span className="grid grid-cols-2 gap-1 mt-1.5 text-xs font-normal text-encre-500">
-              <span>%</span><span>quantité</span>
+              <span>{t('fiche.pourcent')}</span><span>{t('fiche.quantite')}</span>
             </span>
           )}
         </th>
       ))}
     </tr>
   </thead>
-);
+  );
+};
 
 const LigneTitre = ({ label, aide }) => (
   <th scope="row" className="text-left px-5 py-3 font-normal text-encre-700">
@@ -105,15 +109,18 @@ const ChampLab = ({ value, onValeur, min, max, label }) => {
   );
 };
 
-const BoutonsAction = ({ onAnnuler, loading, recetteId }) => (
+const BoutonsAction = ({ onAnnuler, loading, recetteId }) => {
+  const t = useT();
+  return (
   <div className="flex gap-2.5">
-    <button type="button" onClick={onAnnuler} className={cls.btnSecondaire}>Annuler</button>
+    <button type="button" onClick={onAnnuler} className={cls.btnSecondaire}>{t('commun.annuler')}</button>
     <button type="submit" disabled={loading} className={cls.btnPrimaire}>
       <Icone.Valider />
-      {loading ? 'Enregistrement…' : recetteId ? 'Mettre à jour' : 'Enregistrer'}
+      {loading ? t('form.enregistrement') : recetteId ? t('form.mettreAJour') : t('form.enregistrer')}
     </button>
   </div>
-);
+  );
+};
 
 const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const tableName = getRecettesTableName(projetNom);
@@ -157,6 +164,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const t = useT();
+  const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
     if (recetteId) {
@@ -225,7 +234,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             setCouleurs(newCouleurs);
           }
         } catch (err) {
-          setError('Erreur lors du chargement de la recette');
+          setError(t('form.erreurChargement'));
           console.error(err);
         }
       };
@@ -336,7 +345,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
           .maybeSingle();
 
         if (existing) {
-          throw new Error('Ce numéro de fiche existe déjà.');
+          throw new Error(t('form.numeroExiste'));
         }
       }
 
@@ -389,7 +398,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
         if (error) throw error;
       }
 
-      alert(recetteId ? 'Recette mise à jour !' : 'Recette enregistrée !');
+      alert(recetteId ? t('form.alerteMaj') : t('form.alerteEnregistree'));
       if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
@@ -420,29 +429,29 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     return calculateVolumeEauInitial(volumeDuBain, allQuantites);
   };
 
-  const nomsColorants = [1, 2, 3].map((i) => recette[`colorant_${i}`] || `Colorant ${i}`);
+  const nomsColorants = [1, 2, 3].map((i) => recette[`colorant_${i}`] || t('form.colorantN', { n: i }));
 
   return (
     <form onSubmit={handleSubmit} className={`${cls.page} flex flex-col gap-8`}>
       {/* ===== EN-TÊTE ===== */}
       <div className="flex flex-col gap-5">
         {recetteId && (
-          <nav aria-label="Fil d’Ariane" className="flex gap-2 text-sm text-encre-500">
-            <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">Nuancier</Link>
+          <nav aria-label={t('commun.filAriane')} className="flex gap-2 text-sm text-encre-500">
+            <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">{t('nav.nuancier')}</Link>
             <span aria-hidden="true">/</span>
-            <Link to={`/recette/${recetteId}`} className="text-sauge hover:text-sauge-fonce">Fiche {recette.numero_fiche}</Link>
+            <Link to={`/recette/${recetteId}`} className="text-sauge hover:text-sauge-fonce">{t('commun.fiche', { n: recette.numero_fiche })}</Link>
             <span aria-hidden="true">/</span>
-            <span>Modifier</span>
+            <span>{t('form.filModifier')}</span>
           </nav>
         )}
         <div className="flex flex-wrap gap-6 justify-between items-end">
           <div className="flex flex-col gap-2.5">
             <p className="m-0 inline-flex items-center gap-2 text-sm text-brun">
               <span className="w-2 h-2 rounded-full bg-brun-accent" />
-              {recetteId ? 'Mode modification' : 'Nouvelle fiche'}
+              {recetteId ? t('form.modeModif') : t('form.nouvelleFiche')}
             </p>
             <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">
-              {recetteId ? `Fiche ${recette.numero_fiche}` : 'Nouvelle recette'}
+              {recetteId ? t('commun.fiche', { n: recette.numero_fiche }) : t('form.nouvelleRecette')}
             </h1>
           </div>
           <BoutonsAction onAnnuler={annuler} loading={loading} recetteId={recetteId} />
@@ -453,16 +462,16 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       {/* ===== INFORMATIONS + BAIN ===== */}
       <section className="flex flex-wrap gap-6">
         <fieldset className={`${cls.carte} m-0 flex-[1_1_520px] p-7 flex flex-col gap-5`}>
-          <legend className="float-left p-0 font-serif text-2xl">Informations</legend>
+          <legend className="float-left p-0 font-serif text-2xl">{t('fiche.informations')}</legend>
           <div className="clear-both grid grid-cols-2 gap-x-5 gap-y-4">
-            <ChampInfo name="numero_fiche" value={recette.numero_fiche} onChange={handleRecetteChange} label="N° de fiche" required mono />
-            <ChampInfo name="date" value={recette.date} onChange={handleRecetteChange} label="Date" type="date" required />
-            <ChampInfo name="nom" value={recette.nom} onChange={handleRecetteChange} label="Nom" />
-            <ChampInfo name="objet" value={recette.objet} onChange={handleRecetteChange} label="Objet" />
-            <ChampInfo name="matiere" value={recette.matiere} onChange={handleRecetteChange} label="Matière" />
-            <ChampInfo name="pre_mordancage" value={recette.pre_mordancage} onChange={handleRecetteChange} label="Pré-mordançage" />
+            <ChampInfo name="numero_fiche" value={recette.numero_fiche} onChange={handleRecetteChange} label={t('form.numeroFiche')} required mono />
+            <ChampInfo name="date" value={recette.date} onChange={handleRecetteChange} label={t('fiche.date')} type="date" required />
+            <ChampInfo name="nom" value={recette.nom} onChange={handleRecetteChange} label={t('fiche.nom')} />
+            <ChampInfo name="objet" value={recette.objet} onChange={handleRecetteChange} label={t('fiche.objet')} />
+            <ChampInfo name="matiere" value={recette.matiere} onChange={handleRecetteChange} label={t('fiche.matiere')} />
+            <ChampInfo name="pre_mordancage" value={recette.pre_mordancage} onChange={handleRecetteChange} label={t('fiche.preMordancage')} />
             <div className="col-span-2 flex flex-col gap-1.5">
-              <label htmlFor="f-observations" className={cls.labelPetit}>Observations</label>
+              <label htmlFor="f-observations" className={cls.labelPetit}>{t('fiche.observations')}</label>
               <textarea
                 id="f-observations"
                 name="observations"
@@ -476,10 +485,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
         </fieldset>
 
         <fieldset className={`${cls.carte} m-0 flex-[1_1_400px] p-7 flex flex-col gap-5`}>
-          <legend className="float-left p-0 font-serif text-2xl">Bain</legend>
+          <legend className="float-left p-0 font-serif text-2xl">{t('fiche.bain')}</legend>
           <div className="clear-both grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="f-rapport_de_bain" className={cls.labelPetit}>Rapport de bain</label>
+              <label htmlFor="f-rapport_de_bain" className={cls.labelPetit}>{t('fiche.rapportDeBain')}</label>
               <div className="flex items-center h-11 rounded-[10px] border border-lin-600 bg-lin focus-within:ring-2 focus-within:ring-sauge focus-within:bg-white">
                 <span className="pl-3 pr-0.5 font-mono text-[15px] text-encre-500" aria-hidden="true">1:</span>
                 <input
@@ -494,10 +503,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   step="1"
                 />
               </div>
-              <span id="aide-rapport-de-bain" className="sr-only">Rapport de bain 1 pour n, saisir n</span>
+              <span id="aide-rapport-de-bain" className="sr-only">{t('form.aideRapport')}</span>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="f-nb_parts_totales" className={cls.labelPetit}>Parts totales</label>
+              <label htmlFor="f-nb_parts_totales" className={cls.labelPetit}>{t('fiche.partsTotales')}</label>
               <input
                 id="f-nb_parts_totales"
                 type="number"
@@ -512,7 +521,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-[2fr_1fr_1fr] gap-2 text-[13px] font-medium text-encre-500">
-              <span>Colorant</span><span>[C] poudre</span><span>Dil. sol. mère</span>
+              <span>{t('fiche.colorant')}</span><span>{t('fiche.poudre')}</span><span>{t('fiche.dilution')}</span>
             </div>
             {['colorant_1', 'colorant_2', 'colorant_3'].map((colorant, i) => (
               <div key={colorant} className="grid grid-cols-[2fr_1fr_1fr] gap-2">
@@ -521,8 +530,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   name={colorant}
                   value={recette[colorant] ?? ''}
                   onChange={handleRecetteChange}
-                  aria-label={`Colorant ${i + 1}`}
-                  placeholder={`Colorant ${i + 1}`}
+                  aria-label={t('form.colorantN', { n: i + 1 })}
+                  placeholder={t('form.colorantN', { n: i + 1 })}
                   className={`${cls.input} min-w-0 h-10`}
                 />
                 <input
@@ -530,7 +539,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   name={`${colorant}_qte_poudre`}
                   value={recette[`${colorant}_qte_poudre`] ?? ''}
                   onChange={handleRecetteChange}
-                  aria-label={`Concentration poudre colorant ${i + 1}`}
+                  aria-label={t('form.ariaPoudre', { n: i + 1 })}
                   className={`${cls.inputMono} min-w-0 h-10`}
                   min="0"
                 />
@@ -539,7 +548,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   name={`${colorant}_dilution`}
                   value={recette[`${colorant}_dilution`] ?? ''}
                   onChange={handleRecetteChange}
-                  aria-label={`Dilution colorant ${i + 1}`}
+                  aria-label={t('form.ariaDilColorant', { n: i + 1 })}
                   className={`${cls.inputMono} min-w-0 h-10`}
                   min="1"
                 />
@@ -549,7 +558,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-[2fr_1fr] gap-2 text-[13px] font-medium text-encre-500">
-              <span>Mordant / nuançage</span><span>Dil. sol. mère</span>
+              <span>{t('fiche.mordantNuancage')}</span><span>{t('fiche.dilution')}</span>
             </div>
             {['mordant_1', 'mordant_2', 'mordant_3'].map((mordant, i) => (
               <div key={mordant} className="grid grid-cols-[2fr_1fr] gap-2">
@@ -558,8 +567,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   name={mordant}
                   value={recette[mordant] ?? ''}
                   onChange={handleRecetteChange}
-                  aria-label={`Mordant ${i + 1}`}
-                  placeholder={`Mordant ${i + 1}`}
+                  aria-label={t('form.mordantN', { n: i + 1 })}
+                  placeholder={t('form.mordantN', { n: i + 1 })}
                   className={`${cls.input} min-w-0 h-10`}
                 />
                 <input
@@ -567,7 +576,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   name={`${mordant}_dilution`}
                   value={recette[`${mordant}_dilution`] ?? ''}
                   onChange={handleRecetteChange}
-                  aria-label={`Dilution mordant ${i + 1}`}
+                  aria-label={t('form.ariaDilMordant', { n: i + 1 })}
                   className={`${cls.inputMono} min-w-0 h-10`}
                   min="1"
                 />
@@ -579,15 +588,15 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
       <p className="m-0 -mb-4 inline-flex items-center gap-2 text-sm text-encre-500">
         <span className="w-3.5 h-3.5 rounded bg-lin-300" />
-        Cases grisées : valeurs calculées automatiquement
+        {t('form.casesGrisees')}
       </p>
 
       {/* ===== NUANCES ===== */}
-      <Section titre="Nuances">
-        <EnTeteNuances couleurs={couleurs} premiere="Nuance" />
+      <Section titre={t('fiche.nuances')}>
+        <EnTeteNuances couleurs={couleurs} premiere={t('fiche.nuance')} />
         <tbody>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Nombre de parts" aide={nomsColorants.join(' · ')} />
+            <LigneTitre label={t('fiche.nbParts')} aide={nomsColorants.join(' · ')} />
             {couleurs.map((couleur, index) => (
               <td key={`nb_parts_${index}`} className="px-2 py-2.5">
                 <div className="flex gap-1">
@@ -597,7 +606,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                       type="number"
                       value={couleur[`nb_part_colorant_${k}`]}
                       onChange={(e) => handleCouleurChange(index, `nb_part_colorant_${k}`, parseInt(e.target.value) || 0)}
-                      aria-label={`Parts ${nomsColorants[k - 1]}, nuance ${index + 1}`}
+                      aria-label={t('form.ariaParts', { colorant: nomsColorants[k - 1], n: index + 1 })}
                       className={cls.inputCellule}
                       min="0"
                     />
@@ -607,22 +616,22 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Valeur de la part" aide="calculée" />
+            <LigneTitre label={t('fiche.valeurPart')} aide={t('fiche.calculee')} />
             {couleurs.map((couleur, index) => (
               <td key={`valeur_part_${index}`} className="px-2 py-2.5">
-                <div className={cls.calcule}>{calculateValeurDeLaPart(couleur.profondeur_ton)}</div>
+                <div className={cls.calcule}>{aff(calculateValeurDeLaPart(couleur.profondeur_ton))}</div>
               </td>
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Profondeur de ton" />
+            <LigneTitre label={t('fiche.profondeur')} />
             {couleurs.map((couleur, index) => (
               <td key={`profondeur_${index}`} className="px-2 py-2.5">
                 <input
                   type="number"
                   value={couleur.profondeur_ton}
                   onChange={(e) => handleCouleurChange(index, 'profondeur_ton', parseFloat(e.target.value) || 0)}
-                  aria-label={`Profondeur de ton, nuance ${index + 1}`}
+                  aria-label={t('form.ariaChamp', { champ: t('fiche.profondeur'), n: index + 1 })}
                   className={cls.inputCellule}
                   min="0"
                   step="0.01"
@@ -631,14 +640,14 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Poids du tissu" aide="g" />
+            <LigneTitre label={t('fiche.poids')} aide="g" />
             {couleurs.map((couleur, index) => (
               <td key={`poids_${index}`} className="px-2 py-2.5">
                 <input
                   type="number"
                   value={couleur.poids_tissu}
                   onChange={(e) => handleCouleurChange(index, 'poids_tissu', parseFloat(e.target.value) || 0)}
-                  aria-label={`Poids du tissu, nuance ${index + 1}`}
+                  aria-label={t('form.ariaChamp', { champ: t('fiche.poids'), n: index + 1 })}
                   className={cls.inputCellule}
                   min="0"
                   step="0.01"
@@ -647,36 +656,36 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Volume du bain" aide="ml, calculé" />
+            <LigneTitre label={t('fiche.volumeBain')} aide={t('fiche.mlCalcule')} />
             {couleurs.map((couleur, index) => (
               <td key={`volume_bain_${index}`} className="px-2 py-2.5">
-                <div className={cls.calcule}>{calculateVolumeDuBain(couleur.poids_tissu)}</div>
+                <div className={cls.calcule}>{aff(calculateVolumeDuBain(couleur.poids_tissu))}</div>
               </td>
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Bleu de départ" />
+            <LigneTitre label={t('fiche.bleuDepart')} />
             {couleurs.map((couleur, index) => (
               <td key={`bleu_depart_${index}`} className="px-2 py-2.5">
                 <input
                   type="text"
                   value={couleur.bleu_depart ?? ''}
                   onChange={(e) => handleCouleurChange(index, 'bleu_depart', e.target.value)}
-                  aria-label={`Bleu de départ, nuance ${index + 1}`}
+                  aria-label={t('form.ariaChamp', { champ: t('fiche.bleuDepart'), n: index + 1 })}
                   className={cls.inputCellule}
                 />
               </td>
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Informations" />
+            <LigneTitre label={t('fiche.infosNuance')} />
             {couleurs.map((couleur, index) => (
               <td key={`info_${index}`} className="px-2 py-2.5">
                 <input
                   type="text"
                   value={couleur.info ?? ''}
                   onChange={(e) => handleCouleurChange(index, 'info', e.target.value)}
-                  aria-label={`Informations, nuance ${index + 1}`}
+                  aria-label={t('form.ariaChamp', { champ: t('fiche.infosNuance'), n: index + 1 })}
                   className={cls.inputCellule}
                 />
               </td>
@@ -686,8 +695,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       </Section>
 
       {/* ===== COLORANTS ===== */}
-      <Section titre="Colorants" note="% et quantités calculés à partir des parts" minWidth="min-w-[1000px]">
-        <EnTeteNuances couleurs={couleurs} premiere="Colorant" sousColonnes />
+      <Section titre={t('fiche.colorants')} note={t('form.noteColorants')} minWidth="min-w-[1000px]">
+        <EnTeteNuances couleurs={couleurs} premiere={t('fiche.colorant')} sousColonnes />
         <tbody>
           {[1, 2, 3].map((i) => (
             <tr key={i} className="border-t border-lin-400">
@@ -695,8 +704,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
               {couleurs.map((couleur, index) => (
                 <td key={`colorant${i}_${index}`} className="px-2 py-2.5">
                   <div className="grid grid-cols-2 gap-1">
-                    <div className={cls.calcule}>{calculatePourcentColorant(couleur, i)}</div>
-                    <div className={cls.calcule}>{calculateQuantiteColorant(couleur, i)}</div>
+                    <div className={cls.calcule}>{aff(calculatePourcentColorant(couleur, i))}</div>
+                    <div className={cls.calcule}>{aff(calculateQuantiteColorant(couleur, i))}</div>
                   </div>
                 </td>
               ))}
@@ -706,8 +715,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       </Section>
 
       {/* ===== MORDANTS ===== */}
-      <Section titre="Mordants" note="% à saisir, quantité calculée" minWidth="min-w-[1000px]">
-        <EnTeteNuances couleurs={couleurs} premiere="Mordant" sousColonnes />
+      <Section titre={t('fiche.mordants')} note={t('form.noteMordants')} minWidth="min-w-[1000px]">
+        <EnTeteNuances couleurs={couleurs} premiere={t('fiche.mordant')} sousColonnes />
         <tbody>
           {[1, 2, 3].map((i) => (
             <tr key={i} className="border-t border-lin-400">
@@ -721,12 +730,12 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         type="number"
                         value={pourcentage}
                         onChange={(e) => handleCouleurChange(index, `pourcent_mordant_${i}`, parseFloat(e.target.value) || 0)}
-                        aria-label={`Pourcentage ${recette[`mordant_${i}`] || `mordant ${i}`}, nuance ${index + 1}`}
+                        aria-label={t('form.ariaPourcentMordant', { mordant: recette[`mordant_${i}`] || t('form.mordantMinuscule', { n: i }), n: index + 1 })}
                         className={cls.inputCellule}
                         min="0"
                         step="0.01"
                       />
-                      <div className={cls.calcule}>{calculateQuantiteMordant(couleur, i)}</div>
+                      <div className={cls.calcule}>{aff(calculateQuantiteMordant(couleur, i))}</div>
                     </div>
                   </td>
                 );
@@ -737,14 +746,14 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       </Section>
 
       {/* ===== VOLUME D'EAU INITIAL ===== */}
-      <Section titre="Volume d’eau initial" note="Volume du bain moins colorants et mordants">
+      <Section titre={t('fiche.volumeEau')} note={t('form.noteEau')}>
         <EnTeteNuances couleurs={couleurs} premiere="" />
         <tbody>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Volume d’eau initial" aide="ml, calculé" />
+            <LigneTitre label={t('fiche.volumeEau')} aide={t('fiche.mlCalcule')} />
             {couleurs.map((couleur, index) => (
               <td key={`vol_eau_${index}`} className="px-2 py-2.5">
-                <div className={cls.calcule}>{volumeEauInitial(couleur)}</div>
+                <div className={cls.calcule}>{aff(volumeEauInitial(couleur))}</div>
               </td>
             ))}
           </tr>
@@ -752,11 +761,11 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       </Section>
 
       {/* ===== COLORIMÉTRIE ===== */}
-      <Section titre="Colorimétrie" note="Le Lab est recalculé à chaque changement de HEX">
+      <Section titre={t('form.colorimetrie')} note={t('form.noteColorimetrie')}>
         <EnTeteNuances couleurs={couleurs} premiere="" />
         <tbody>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Code HEX" />
+            <LigneTitre label={t('form.codeHex')} />
             {couleurs.map((couleur, index) => (
               <td key={`hex_${index}`} className="px-2 py-2.5">
                 <div className="flex items-center gap-1.5 p-1 rounded-[10px] border border-lin-600 bg-lin focus-within:ring-2 focus-within:ring-sauge">
@@ -764,7 +773,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                     type="color"
                     value={couleur.couleur_hex}
                     onChange={(e) => handleCouleurChange(index, 'couleur_hex', e.target.value)}
-                    aria-label={`Sélecteur de couleur, nuance ${index + 1}`}
+                    aria-label={t('form.ariaSelecteur', { n: index + 1 })}
                     className="w-8 h-8 flex-none p-0 border-0 rounded-md bg-transparent cursor-pointer"
                   />
                   <input
@@ -777,7 +786,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                         handleCouleurChange(index, 'couleur_hex', (v.startsWith('#') ? v : `#${v}`).toUpperCase());
                       }
                     }}
-                    aria-label={`Code HEX, nuance ${index + 1}`}
+                    aria-label={t('form.ariaHex', { n: index + 1 })}
                     className="flex-1 w-full min-w-0 h-8 px-1 bg-transparent border-0 font-mono text-[13px] text-encre focus:outline-none"
                   />
                 </div>
@@ -785,7 +794,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             ))}
           </tr>
           <tr className="border-t border-lin-400">
-            <LigneTitre label="Code Lab" aide="L · a · b" />
+            <LigneTitre label={t('form.codeLab')} aide="L · a · b" />
             {couleurs.map((couleur, index) => (
               <td key={`lab_${index}`} className="px-2 py-2.5">
                 <div className="grid grid-cols-3 gap-1">
@@ -800,7 +809,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                       onValeur={(v) => handleCouleurChange(index, champ, v)}
                       min={min}
                       max={max}
-                      label={`${nom}, nuance ${index + 1}`}
+                      label={t('form.ariaChamp', { champ: nom, n: index + 1 })}
                     />
                   ))}
                 </div>
@@ -812,7 +821,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
       {/* ===== ACTIONS ===== */}
       <div className="flex flex-wrap justify-between items-center gap-4 px-6 py-5 rounded-[20px] bg-lin-700">
-        <p className="m-0 text-sm text-encre-600">* Champs obligatoires</p>
+        <p className="m-0 text-sm text-encre-600">{t('form.champsObligatoires')}</p>
         <BoutonsAction onAnnuler={annuler} loading={loading} recetteId={recetteId} />
       </div>
     </form>

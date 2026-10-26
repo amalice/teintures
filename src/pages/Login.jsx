@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { cls, Logo } from '../components/ui';
+import { useT, ChoixLangue } from '../i18n';
 
 // Bandes décoratives du panneau gauche
 const bandes = [
@@ -21,6 +22,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const t = useT();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -36,7 +38,7 @@ const Login = () => {
       if (authError) throw authError;
       navigate('/');
     } catch (err) {
-      setError(err.message || 'Erreur de connexion');
+      setError(err.message || t('login.erreur'));
     } finally {
       setLoading(false);
     }
@@ -59,32 +61,33 @@ const Login = () => {
           ))}
         </div>
         <p className="m-0 font-serif text-[28px] leading-snug max-w-md text-encre-700">
-          Le carnet de bains, de recettes et de nuances de l’atelier.
+          {t('login.accroche')}
         </p>
       </aside>
 
-      <main className="flex-[1_1_480px] flex items-center justify-center px-6 py-12">
+      <main className="relative flex-[1_1_480px] flex items-center justify-center px-6 pt-20 pb-12">
+        <ChoixLangue className="absolute top-6 right-6" />
         <form onSubmit={handleLogin} className="w-full max-w-sm flex flex-col gap-7">
           <div className="flex flex-col gap-2.5">
-            <h1 className="m-0 font-serif font-normal text-[40px]">Connexion</h1>
-            <p className="m-0 text-base text-encre-500">Accédez aux projets de votre atelier.</p>
+            <h1 className="m-0 font-serif font-normal text-[40px]">{t('login.titre')}</h1>
+            <p className="m-0 text-base text-encre-500">{t('login.sousTitre')}</p>
           </div>
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label className={cls.label} htmlFor="email">Email</label>
+              <label className={cls.label} htmlFor="email">{t('login.email')}</label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@atelier.fr"
+                placeholder={t('login.placeholderEmail')}
                 className={`${cls.input} h-12 px-4 text-base bg-lin-50`}
                 required
               />
             </div>
             <div className="flex flex-col gap-2">
-              <label className={cls.label} htmlFor="password">Mot de passe</label>
+              <label className={cls.label} htmlFor="password">{t('login.motDePasse')}</label>
               <input
                 id="password"
                 type="password"
@@ -99,11 +102,11 @@ const Login = () => {
           {error && <p role="alert" className={`m-0 ${cls.erreur}`}>{error}</p>}
 
           <button type="submit" disabled={loading} className={`${cls.btnPrimaire} h-12 text-base w-full`}>
-            {loading ? 'Connexion en cours…' : 'Se connecter'}
+            {loading ? t('login.connexionEnCours') : t('login.seConnecter')}
           </button>
 
           <p className="m-0 text-sm text-encre-500 leading-relaxed">
-            Pas encore de compte ? Demandez un accès à l’administratrice du projet.
+            {t('login.pasDeCompte')}
           </p>
         </form>
       </main>

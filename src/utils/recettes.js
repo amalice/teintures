@@ -3,7 +3,9 @@ import { getRecettesTableName } from './tableNames';
 
 /**
  * Cherche une recette par son numéro de fiche.
- * @returns {Promise<{recetteId: string|null, erreur: string|null}>}
+ * L'erreur éventuelle est renvoyée sous forme de clé de traduction (+ message technique) :
+ * l'appelant l'affiche avec t(erreur.cle, { message: erreur.message }).
+ * @returns {Promise<{recetteId: string|null, erreur: {cle: string, message?: string}|null}>}
  */
 export const rechercherRecetteParNumero = async (projetNom, numero) => {
   if (!numero || !projetNom) return { recetteId: null, erreur: null };
@@ -18,22 +20,26 @@ export const rechercherRecetteParNumero = async (projetNom, numero) => {
 
     if (error) {
       console.error('Erreur Supabase:', error);
-      return { recetteId: null, erreur: `Erreur : ${error.message}` };
+      return { recetteId: null, erreur: { cle: 'commun.erreur', message: error.message } };
     }
     if (data && data.length > 0) {
       return { recetteId: data[0].recette_id, erreur: null };
     }
-    return { recetteId: null, erreur: 'Aucune recette trouvée avec ce numéro de fiche.' };
+    return { recetteId: null, erreur: { cle: 'commun.aucuneRecetteNumero' } };
   } catch (err) {
     console.error('Erreur:', err);
-    return { recetteId: null, erreur: 'Une erreur est survenue.' };
+    return { recetteId: null, erreur: { cle: 'commun.erreurGenerique' } };
   }
 };
 
-/** Formate une date ISO (AAAA-MM-JJ) en « 5 avr. 2026 ». */
-export const formaterDate = (date) => {
+/** Formate une date ISO (AAAA-MM-JJ) : « 5 avr. 2026 » en français, « 5 Apr 2026 » en anglais. */
+export const formaterDate = (date, langue = 'fr') => {
   if (!date) return '';
   const d = new Date(`${date}T00:00:00`);
   if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(langue === 'en' ? 'en-GB' : 'fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 };

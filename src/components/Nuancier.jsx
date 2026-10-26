@@ -4,6 +4,7 @@ import { getRecettesTableName } from '../utils/tableNames';
 import { rechercherRecetteParNumero } from '../utils/recettes';
 import { useNavigate, Link } from 'react-router-dom';
 import { cls, Chargement, Message } from './ui';
+import { useT } from '../i18n';
 
 const TOUS = 'Tous';
 
@@ -16,6 +17,7 @@ const teinte = (c) => {
 
 const Nuancier = ({ projetId, projetNom }) => {
   const navigate = useNavigate();
+  const t = useT();
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,14 +32,14 @@ const Nuancier = ({ projetId, projetNom }) => {
       setError(null);
 
       if (!projetId || !projetNom) {
-        setError("Projet non sélectionné.");
+        setError({ cle: 'commun.projetNonSelectionne' });
         setLoading(false);
         return;
       }
 
       const tableName = getRecettesTableName(projetNom);
       if (!tableName) {
-        setError("Impossible de générer le nom de la table.");
+        setError({ cle: 'commun.erreurTable' });
         setLoading(false);
         return;
       }
@@ -74,7 +76,7 @@ const Nuancier = ({ projetId, projetNom }) => {
         setCouleurs(uniqueCouleurs);
       } catch (err) {
         console.error('Erreur lors de la récupération des couleurs:', err);
-        setError(`Erreur : ${err.message}`);
+        setError({ cle: 'commun.erreur', message: err.message });
       } finally {
         setLoading(false);
       }
@@ -109,47 +111,48 @@ const Nuancier = ({ projetId, projetNom }) => {
     setErreurRecherche('');
     const { recetteId, erreur } = await rechercherRecetteParNumero(projetNom, numeroFicheRecherche.trim());
     if (recetteId) navigate(`/recette/${recetteId}`);  // Navigue vers l'URL de la recette
-    else if (erreur) setErreurRecherche(erreur);
+    else if (erreur) setErreurRecherche(t(erreur.cle, { message: erreur.message }));
   };
 
   if (loading) {
-    return <Chargement texte="Chargement du nuancier…" />;
+    return <Chargement texte={t('nuancier.chargement')} />;
   }
 
   if (error) {
-    return <Message erreur={error !== 'Projet non sélectionné.'}>{error === 'Projet non sélectionné.' ? 'Sélectionnez un projet dans le menu en haut à droite.' : error}</Message>;
+    if (error.cle === 'commun.projetNonSelectionne') return <Message>{t('commun.selectionnezProjet')}</Message>;
+    return <Message erreur>{t(error.cle, { message: error.message })}</Message>;
   }
 
   return (
     <div className={`${cls.page} pt-14 flex flex-col gap-8`}>
       <div className="flex flex-wrap gap-6 justify-between items-end">
         <div className="flex flex-col gap-2.5">
-          <h1 className={`m-0 ${cls.h1}`}>Nuancier</h1>
+          <h1 className={`m-0 ${cls.h1}`}>{t('nuancier.titre')}</h1>
           <p className="m-0 text-base text-encre-500">
-            {couleursAffichees.length} couleur{couleursAffichees.length > 1 ? 's' : ''} · {projetNom}
+            {t('nuancier.compte', { n: couleursAffichees.length })} · {projetNom}
           </p>
         </div>
 
         {/* Recherche par numéro de fiche */}
         <form onSubmit={handleSearchByNumeroFiche} className="flex flex-col gap-1.5 flex-[0_1_420px]">
           <div className="flex gap-2">
-            <label htmlFor="numero-fiche" className="sr-only">Numéro de fiche</label>
+            <label htmlFor="numero-fiche" className="sr-only">{t('commun.numeroFiche')}</label>
             <input
               id="numero-fiche"
               type="text"
-              placeholder="N° de fiche, ex. 260405"
+              placeholder={t('commun.placeholderNumero')}
               value={numeroFicheRecherche}
               onChange={(e) => setNumeroFicheRecherche(e.target.value)}
               className={`${cls.inputMono} flex-1 min-w-0 px-4 bg-lin-50`}
             />
-            <button type="submit" className={cls.btnPrimaire}>Ouvrir</button>
+            <button type="submit" className={cls.btnPrimaire}>{t('commun.ouvrir')}</button>
           </div>
           {erreurRecherche && <p className="m-0 text-sm text-alerte-texte">{erreurRecherche}</p>}
         </form>
       </div>
 
       <div className="flex flex-wrap gap-4 justify-between items-center pb-2 border-b border-lin-500">
-        <div role="group" aria-label="Filtrer par colorant" className="flex flex-wrap gap-2">
+        <div role="group" aria-label={t('nuancier.filtrer')} className="flex flex-wrap gap-2">
           {colorantsDisponibles.map((nom) => {
             const actif = nom === filtre;
             return (
@@ -164,13 +167,13 @@ const Nuancier = ({ projetId, projetNom }) => {
                     : 'bg-lin-50 border-lin-600 text-encre-700 hover:border-sauge'
                 }`}
               >
-                {nom}
+                {nom === TOUS ? t('nuancier.tous') : nom}
               </button>
             );
           })}
         </div>
-        <div role="group" aria-label="Trier" className="flex gap-1 p-1 rounded-full bg-lin-300">
-          {[['fiche', 'Par fiche'], ['couleur', 'Par couleur']].map(([id, label]) => (
+        <div role="group" aria-label={t('nuancier.trier')} className="flex gap-1 p-1 rounded-full bg-lin-300">
+          {[['fiche', t('nuancier.parFiche')], ['couleur', t('nuancier.parCouleur')]].map(([id, label]) => (
             <button
               type="button"
               key={id}
@@ -185,7 +188,7 @@ const Nuancier = ({ projetId, projetNom }) => {
       </div>
 
       {couleursAffichees.length === 0 ? (
-        <div className="text-center py-4 text-encre-500">Aucune couleur trouvée pour ce projet.</div>
+        <div className="text-center py-4 text-encre-500">{t('nuancier.aucuneCouleur')}</div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-5 gap-y-7">
           {couleursAffichees.map((couleur, index) => (
@@ -200,8 +203,8 @@ const Nuancier = ({ projetId, projetNom }) => {
               />
               <span className="flex flex-col gap-1 px-0.5">
                 <span className="flex justify-between items-baseline gap-2">
-                  <span className="text-[15px] font-medium">Fiche {couleur.fiche}</span>
-                  <span className="text-[13px] text-encre-500">n° {couleur.indexCouleur}</span>
+                  <span className="text-[15px] font-medium">{t('commun.fiche', { n: couleur.fiche })}</span>
+                  <span className="text-[13px] text-encre-500">{t('commun.numeroNuance', { n: couleur.indexCouleur })}</span>
                 </span>
                 <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
                 <span className="font-mono text-xs text-encre-500">

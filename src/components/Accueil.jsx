@@ -4,28 +4,29 @@ import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
 import { rechercherRecetteParNumero, formaterDate } from '../utils/recettes';
 import { cls, Icone, Chargement } from './ui';
+import { useLangue } from '../i18n';
 
 const NB_DERNIERES_FICHES = 4;
 
 const raccourcis = [
   {
     to: '/nouvelle-recette',
-    titre: 'Nouvelle recette',
-    texte: 'Saisir colorants, mordants et les six nuances d’un bain.',
+    titre: 'accueil.nouvelleTitre',
+    texte: 'accueil.nouvelleTexte',
     Icon: Icone.Plus,
     fond: 'bg-sauge-pale text-sauge',
   },
   {
     to: '/recherche-teinte',
-    titre: 'Recherche par teinte',
-    texte: 'Trouver les recettes les plus proches d’un HEX ou d’un Lab.',
+    titre: 'accueil.rechercheTitre',
+    texte: 'accueil.rechercheTexte',
     Icon: Icone.Loupe,
     fond: 'bg-[#EFE3D3] text-brun',
   },
   {
     to: '/nuancier',
-    titre: 'Nuancier',
-    texte: 'Parcourir toutes les couleurs obtenues dans le projet.',
+    titre: 'accueil.nuancierTitre',
+    texte: 'accueil.nuancierTexte',
     Icon: Icone.Grille,
     fond: 'bg-[#F1EAD8] text-[#6B5C22]',
   },
@@ -33,6 +34,7 @@ const raccourcis = [
 
 const Accueil = ({ projetId, projetNom }) => {
   const navigate = useNavigate();
+  const { t, langue } = useLangue();
   const [prenom, setPrenom] = useState('');
   const [fiches, setFiches] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +97,7 @@ const Accueil = ({ projetId, projetNom }) => {
     setErreurNumero('');
     const { recetteId, erreur } = await rechercherRecetteParNumero(projetNom, numero.trim());
     if (recetteId) navigate(`/recette/${recetteId}`);
-    else if (erreur) setErreurNumero(erreur);
+    else if (erreur) setErreurNumero(t(erreur.cle, { message: erreur.message }));
   };
 
   return (
@@ -103,38 +105,36 @@ const Accueil = ({ projetId, projetNom }) => {
       <section className="flex flex-wrap gap-10 items-end justify-between">
         <div className="flex-[1_1_520px] flex flex-col gap-4">
           <p className="m-0 text-[13px] tracking-[0.08em] uppercase text-encre-500">
-            {projetNom ? `Projet · ${projetNom}` : 'Aucun projet sélectionné'}
+            {projetNom ? t('accueil.projet', { nom: projetNom }) : t('accueil.aucunProjet')}
           </p>
           <h1 className="m-0 font-serif font-normal text-[56px] leading-[1.05] tracking-tight">
-            {prenom ? `Bonjour ${prenom}.` : 'Bonjour.'}
+            {prenom ? t('accueil.bonjourNom', { nom: prenom }) : t('accueil.bonjour')}
           </h1>
           <p className="m-0 text-lg leading-relaxed text-encre-600 max-w-lg">
-            {projetNom
-              ? 'Reprenez une fiche en cours, ou retrouvez une couleur par son numéro.'
-              : 'Choisissez un projet dans le menu en haut à droite pour commencer.'}
+            {projetNom ? t('accueil.intro') : t('accueil.introSansProjet')}
           </p>
         </div>
 
         {projetId && (
           <form onSubmit={ouvrirFiche} className="flex-[1_1_380px] max-w-md flex flex-col gap-2">
-            <label htmlFor="numero-fiche-accueil" className={cls.label}>Ouvrir une fiche</label>
+            <label htmlFor="numero-fiche-accueil" className={cls.label}>{t('accueil.ouvrirFiche')}</label>
             <div className="flex gap-2">
               <input
                 id="numero-fiche-accueil"
                 type="text"
                 value={numero}
                 onChange={(e) => setNumero(e.target.value)}
-                placeholder="N° de fiche, ex. 260405"
+                placeholder={t('commun.placeholderNumero')}
                 className={`${cls.inputMono} flex-1 min-w-0 h-12 px-4 bg-lin-50 text-base`}
               />
-              <button type="submit" className={`${cls.btnPrimaire} h-12`}>Ouvrir</button>
+              <button type="submit" className={`${cls.btnPrimaire} h-12`}>{t('commun.ouvrir')}</button>
             </div>
             {erreurNumero && <p className="m-0 text-sm text-alerte-texte">{erreurNumero}</p>}
           </form>
         )}
       </section>
 
-      <section aria-label="Raccourcis" className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
+      <section aria-label={t('accueil.raccourcis')} className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
         {raccourcis.map(({ to, titre, texte, Icon, fond }) => (
           <Link
             key={to}
@@ -145,8 +145,8 @@ const Accueil = ({ projetId, projetNom }) => {
               <Icon />
             </span>
             <span className="flex flex-col gap-1.5">
-              <span className="font-serif text-[22px]">{titre}</span>
-              <span className="text-sm text-encre-500 leading-relaxed">{texte}</span>
+              <span className="font-serif text-[22px]">{t(titre)}</span>
+              <span className="text-sm text-encre-500 leading-relaxed">{t(texte)}</span>
             </span>
           </Link>
         ))}
@@ -155,16 +155,16 @@ const Accueil = ({ projetId, projetNom }) => {
       {projetId && (
         <section className="flex flex-col gap-5">
           <div className="flex flex-wrap justify-between items-baseline gap-4">
-            <h2 className={`m-0 ${cls.h2}`}>Dernières fiches</h2>
+            <h2 className={`m-0 ${cls.h2}`}>{t('accueil.dernieres')}</h2>
             <Link to="/nuancier" className="text-[15px] font-medium text-sauge hover:text-sauge-fonce">
-              Tout le nuancier
+              {t('accueil.toutNuancier')}
             </Link>
           </div>
 
           {loading ? (
-            <Chargement texte="Chargement des fiches…" />
+            <Chargement texte={t('accueil.chargementFiches')} />
           ) : fiches.length === 0 ? (
-            <p className="m-0 text-encre-500">Aucune fiche pour ce projet.</p>
+            <p className="m-0 text-encre-500">{t('accueil.aucuneFiche')}</p>
           ) : (
             <div className="rounded-[20px] border border-lin-500 bg-lin-100 overflow-hidden">
               {fiches.map((f) => (
@@ -179,12 +179,12 @@ const Accueil = ({ projetId, projetNom }) => {
                     ))}
                   </span>
                   <span className="flex-[1_1_240px] flex flex-col gap-1 min-w-0">
-                    <span className="text-base font-medium">Fiche {f.numero_fiche}</span>
+                    <span className="text-base font-medium">{t('commun.fiche', { n: f.numero_fiche })}</span>
                     <span className="text-sm text-encre-500">
                       {[f.colorants, f.matiere].filter(Boolean).join(' · ') || '—'}
                     </span>
                   </span>
-                  <span className="text-sm text-encre-500 w-24">{formaterDate(f.date)}</span>
+                  <span className="text-sm text-encre-500 w-24">{formaterDate(f.date, langue)}</span>
                   <Icone.Droite className="text-encre-500" />
                 </Link>
               ))}

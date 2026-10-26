@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { cls } from './ui';
+import { useT } from '../i18n';
 
 export default function CreerProjetModal({ onClose, onProjetCreated }) {
+  const t = useT();
   const [nom, setNom] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -65,7 +67,7 @@ export default function CreerProjetModal({ onClose, onProjetCreated }) {
         }
       }
 
-      alert('Projet créé avec succès !');
+      alert(t('modalProjet.succes'));
       onProjetCreated();
       onClose();
     } catch (err) {
@@ -90,21 +92,21 @@ export default function CreerProjetModal({ onClose, onProjetCreated }) {
         className="w-full max-w-md rounded-[20px] border border-lin-500 bg-lin-50 p-7 shadow-xl flex flex-col gap-6"
       >
         <div className="flex flex-col gap-2">
-          <h2 id="titre-creer-projet" className={`m-0 ${cls.h3}`}>Créer un projet</h2>
+          <h2 id="titre-creer-projet" className={`m-0 ${cls.h3}`}>{t('modalProjet.titre')}</h2>
           <p className="m-0 text-sm text-encre-500 leading-relaxed">
-            Le projet aura son propre nuancier et ses propres fiches recettes.
+            {t('modalProjet.intro')}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
-            <label htmlFor="nom-projet" className={cls.label}>Nom du projet</label>
+            <label htmlFor="nom-projet" className={cls.label}>{t('modalProjet.nom')}</label>
             <input
               id="nom-projet"
               type="text"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
-              placeholder="ex. Atelier Garance"
+              placeholder={t('modalProjet.placeholder')}
               required
               autoFocus
               className={`${cls.input} h-12 px-4 text-base`}
@@ -115,10 +117,10 @@ export default function CreerProjetModal({ onClose, onProjetCreated }) {
 
           <div className="flex justify-end gap-2.5">
             <button type="button" onClick={onClose} disabled={loading} className={cls.btnSecondaire}>
-              Annuler
+              {t('commun.annuler')}
             </button>
             <button type="submit" disabled={loading} className={cls.btnPrimaire}>
-              {loading ? 'Création en cours…' : 'Créer le projet'}
+              {loading ? t('modalProjet.creation') : t('modalProjet.creer')}
             </button>
           </div>
         </form>

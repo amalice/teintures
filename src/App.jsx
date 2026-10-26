@@ -8,16 +8,17 @@ import Tuto from './pages/Tuto';
 import PrivateRoute from './components/PrivateRoute';
 import CreerProjetModal from './components/CreerProjetModal';
 import { Logo, Icone } from './components/ui';
+import { useT, ChoixLangue } from './i18n';
 
 // Créer un contexte pour partager projetId, projetNom, et isAdmin
 const ProjetContext = createContext();
 
 const liensNav = [
-  { to: '/', label: 'Accueil', end: true },
-  { to: '/nuancier', label: 'Nuancier' },
-  { to: '/recherche-teinte', label: 'Recherche par teinte' },
-  { to: '/nouvelle-recette', label: 'Nouvelle recette' },
-  { to: '/tuto', label: 'Tuto' },
+  { to: '/', cle: 'nav.accueil', end: true },
+  { to: '/nuancier', cle: 'nav.nuancier' },
+  { to: '/recherche-teinte', cle: 'nav.recherche' },
+  { to: '/nouvelle-recette', cle: 'nav.nouvelle' },
+  { to: '/tuto', cle: 'nav.tuto' },
 ];
 
 const classeLien = ({ isActive }) =>
@@ -45,6 +46,7 @@ const initiales = (email) => {
 };
 
 function App() {
+  const t = useT();
   const [session, setSession] = useState(null);
   const [projetId, setProjetId] = useState(null);
   const [projetNom, setProjetNom] = useState('');
@@ -152,10 +154,10 @@ function App() {
               <Logo />
             </Link>
 
-            <nav aria-label="Navigation principale" className="flex flex-wrap gap-1 flex-1">
+            <nav aria-label={t('nav.principale')} className="flex flex-wrap gap-1 flex-1">
               {liensNav.map((lien) => (
                 <NavLink key={lien.to} to={lien.to} end={lien.end} className={classeLien}>
-                  {lien.label}
+                  {t(lien.cle)}
                 </NavLink>
               ))}
             </nav>
@@ -172,15 +174,15 @@ function App() {
                 className="flex items-center gap-2 h-11 px-4 rounded-full border border-lin-600 bg-lin-50 text-sm font-medium text-encre hover:border-sauge"
               >
                 <span className={`w-2 h-2 rounded-full ${projetNom ? 'bg-sauge-point' : 'bg-lin-600'}`} />
-                {projetNom || 'Sélectionner un projet'}
+                {projetNom || t('projet.selectionner')}
                 <Icone.Chevron />
               </button>
               {isProjetMenuOpen && (
                 <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
                   {loadingProjets ? (
-                    <div className="px-3 py-2 text-sm text-encre-500">Chargement…</div>
+                    <div className="px-3 py-2 text-sm text-encre-500">{t('projet.chargement')}</div>
                   ) : projets.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-encre-500">Aucun projet disponible.</div>
+                    <div className="px-3 py-2 text-sm text-encre-500">{t('projet.aucun')}</div>
                   ) : (
                     projets.map((droit) => (
                       <button
@@ -209,13 +211,16 @@ function App() {
                         className="flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-sauge hover:bg-lin-300"
                       >
                         <Icone.Plus width="16" height="16" />
-                        Créer un nouveau projet
+                        {t('projet.creer')}
                       </button>
                     </div>
                   )}
                 </div>
               )}
             </div>
+
+            {/* Choix de la langue */}
+            <ChoixLangue />
 
             {/* Menu du compte */}
             <div className="relative">
@@ -225,7 +230,7 @@ function App() {
                   setIsCompteMenuOpen(!isCompteMenuOpen);
                   setIsProjetMenuOpen(false);
                 }}
-                aria-label="Compte et déconnexion"
+                aria-label={t('compte.aria')}
                 aria-expanded={isCompteMenuOpen}
                 className="w-11 h-11 rounded-full bg-brun text-lin-50 text-sm font-semibold"
               >
@@ -242,7 +247,7 @@ function App() {
                     }}
                     className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-alerte-texte hover:bg-alerte-fond"
                   >
-                    Déconnexion
+                    {t('compte.deconnexion')}
                   </button>
                 </div>
               )}

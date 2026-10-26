@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useT } from '../i18n';
+import { Chargement } from '../components/ui';
 
 export default function Admin() {
+  const t = useT();
   const [projets, setProjets] = useState([]);
   const [selectedProjet, setSelectedProjet] = useState('');
   const [utilisateurs, setUtilisateurs] = useState([]);
@@ -123,7 +126,7 @@ useEffect(() => {
 
       if (insertError) throw insertError;
 
-      alert('Modifications enregistrées avec succès !');
+      alert(t('admin.succes'));
       setModified(false);
     } catch (err) {
       setError(err.message);
@@ -132,22 +135,22 @@ useEffect(() => {
     }
   };
 
-  if (loading) return <div>Chargement...</div>;
+  if (loading) return <Chargement />;
   if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Panneau d'administration</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('admin.titre')}</h1>
 
       {/* Menu déroulant pour sélectionner un projet */}
       <div className="mb-6">
-        <label className="block text-gray-700 mb-2">Sélectionner un projet</label>
+        <label className="block text-gray-700 mb-2">{t('admin.selectionner')}</label>
         <select
           value={selectedProjet}
           onChange={(e) => setSelectedProjet(e.target.value)}
           className="w-full p-2 border rounded"
         >
-          <option value="">-- Sélectionnez un projet --</option>
+          <option value="">{t('admin.selectionnez')}</option>
           {projets.map((projet) => (
             <option key={projet.id} value={projet.id}>
               {projet.nom}
@@ -159,14 +162,14 @@ useEffect(() => {
       {/* Liste des utilisateurs avec menus déroulants pour les rôles */}
       {selectedProjet && (
         <div className="mb-6">
-          <h2 className="text-xl font-bold mb-4">Gérer les droits des utilisateurs</h2>
+          <h2 className="text-xl font-bold mb-4">{t('admin.gerer')}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full bg-white border">
               <thead>
                 <tr>
-                  <th className="py-2 px-4 border-b">Nom</th>
-                  <th className="py-2 px-4 border-b">Email</th>
-                  <th className="py-2 px-4 border-b">Rôle</th>
+                  <th className="py-2 px-4 border-b">{t('admin.nom')}</th>
+                  <th className="py-2 px-4 border-b">{t('admin.email')}</th>
+                  <th className="py-2 px-4 border-b">{t('admin.role')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,10 +183,10 @@ useEffect(() => {
                         onChange={(e) => handleRoleChange(utilisateur.id, e.target.value)}
                         className="w-full p-2 border rounded"
                       >
-                        <option value="aucun">Aucun</option>
-                        <option value="Administrateur">Administrateur</option>
-                        <option value="Teinturier">Teinturier</option>
-                        <option value="Visiteur">Visiteur</option>
+                        <option value="aucun">{t('admin.roleAucun')}</option>
+                        <option value="Administrateur">{t('admin.roleAdministrateur')}</option>
+                        <option value="Teinturier">{t('admin.roleTeinturier')}</option>
+                        <option value="Visiteur">{t('admin.roleVisiteur')}</option>
                       </select>
                     </td>
                   </tr>
@@ -200,7 +203,7 @@ useEffect(() => {
           onClick={handleSaveModifications}
           className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
         >
-          Enregistrer les modifications
+          {t('admin.enregistrer')}
         </button>
       )}
     </div>
