@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
-import { useNavigate } from 'react-router-dom';
+import { formaterDate } from '../utils/recettes';
+import { useNavigate, Link } from 'react-router-dom';
+import { cls, Icone, PastilleNuance, Chargement, Message } from './ui';
+import { useLangue, useNombre } from '../i18n';
 
 const RecetteView = ({ projetId, projetNom, recetteId, onEdit }) => {
   const tableName = getRecettesTableName(projetNom);
@@ -10,6 +13,8 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { t, langue } = useLangue();
+  const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
     console.log('recetteId:', recetteId);
@@ -73,7 +78,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
             bleu_depart: row.bleu_depart,
           })));
         } else {
-          setError('Recette introuvable');
+          setError(t('fiche.introuvable'));
         }
       } catch (err) {
         setError(err.message);
@@ -87,7 +92,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
   const getRapportDeBainValue = () => {
     if (!recette?.rapport_de_bain) return 0;
-    const match = recette.rapport_de_bain.match(/\d+/);
+    const match = String(recette.rapport_de_bain).match(/\d+/);
     return match ? parseInt(match[0]) : 0;
   };
 
@@ -114,7 +119,6 @@ console.log('Table name:', getRecettesTableName(projetNom));
   };  
 
   const calculateQuantiteColorant = (couleur, colorantIndex) => {
-    const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton).replace(',', '.');
     const dilution = recette[`colorant_${colorantIndex}_dilution`];
     const qtePoudre = recette[`colorant_${colorantIndex}_qte_poudre`];
     const nbParts = couleur[`nb_part_colorant_${colorantIndex}`];
@@ -125,9 +129,13 @@ console.log('Table name:', getRecettesTableName(projetNom));
     return quantite.toFixed(3).replace('.', ',');
   };
 
-  const calculateQuantiteMordant = (pourcentage, valeurDeLaPart) => {
-    const partValue = parseFloat(valeurDeLaPart.replace(',', '.'));
-    return (pourcentage * partValue / 100).toFixed(3).replace('.', ',');
+  // Quantité de mordant = poids du tissu × % / 100 × dilution de la solution mère
+  // (même convention que les colorants : % exprimé par rapport au poids du tissu).
+  const calculateQuantiteMordant = (couleur, mordantIndex) => {
+    const pourcentage = parseFloat(couleur[`pourcent_mordant_${mordantIndex}`]) || 0;
+    const poids = parseFloat(couleur.poids_tissu) || 0;
+    const dilution = parseFloat(recette[`mordant_${mordantIndex}_dilution`]) || 1;
+    return (poids * pourcentage / 100 * dilution).toFixed(3).replace('.', ',');
   };
 
   const calculateVolumeEauInitial = (volumeDuBain, quantites) => {
@@ -139,455 +147,313 @@ console.log('Table name:', getRecettesTableName(projetNom));
     return recette[`${mordantOuColorant}_${Index}_dilution`] === 1 ? "g" : "ml";
   };
 
-  if (loading) return <div className="text-center py-4">Chargement...</div>;
-  if (error) return <div className="text-red-500 text-center">{error}</div>;
-  if (!recette) return <div className="text-center">Aucune recette sélectionnée.</div>;
+  if (loading) return <Chargement />;
+  if (error) return <Message erreur>{error}</Message>;
+  if (!recette) return <Message>{t('fiche.aucuneSelectionnee')}</Message>;
+
+  const indexColorants = [1, 2, 3].filter((i) => recette[`colorant_${i}`]);
+  const indexMordants = [1, 2, 3].filter((i) => recette[`mordant_${i}`]);
+  const nombre = (v, decimales) =>
+    v === null || v === undefined || v === '' ? '—' : aff(Number(v).toFixed(decimales));
+
+  const lignesNuances = [
+    {
+      label: t('fiche.nbParts'),
+      aide: indexColorants.map((i) => recette[`colorant_${i}`]).join(' · '),
+      valeur: (c) => indexColorants.map((i) => c[`nb_part_colorant_${i}`] ?? 0).join(' · ') || '—',
+    },
+    { label: t('fiche.valeurPart'), aide: t('fiche.calculee'), valeur: (c) => aff(calculateValeurDeLaPart(c.profondeur_ton)) },
+    { label: t('fiche.profondeur'), aide: '', valeur: (c) => nombre(c.profondeur_ton, 2) },
+    { label: t('fiche.poids'), aide: 'g', valeur: (c) => aff(c.poids_tissu ?? '—') },
+    { label: t('fiche.volumeBain'), aide: t('fiche.mlCalcule'), valeur: (c) => aff(calculateVolumeDuBain(c.poids_tissu)) },
+    { label: t('fiche.bleuDepart'), aide: '', valeur: (c) => c.bleu_depart || '—' },
+    { label: t('fiche.infosNuance'), aide: '', valeur: (c) => c.info || '—' },
+  ];
+
+  const volumeEauInitial = (couleur) => {
+    const quantitesColorants = [
+      calculateQuantiteColorant(couleur, 1),
+      calculateQuantiteColorant(couleur, 2),
+      calculateQuantiteColorant(couleur, 3),
+    ];
+    const quantitesMordants = [
+      calculateQuantiteMordant(couleur, 1),
+      calculateQuantiteMordant(couleur, 2),
+      calculateQuantiteMordant(couleur, 3),
+    ];
+    const allQuantites = [...quantitesColorants, ...quantitesMordants];
+    const volumeDuBain = calculateVolumeDuBain(couleur.poids_tissu);
+    return calculateVolumeEauInitial(volumeDuBain, allQuantites);
+  };
+
+  // En-tête commun aux tableaux : une colonne par nuance
+  const EnTeteNuances = ({ premiere, sousColonnes = false }) => (
+    <thead>
+      <tr>
+        <th
+          scope="col"
+          rowSpan={sousColonnes ? 2 : 1}
+          className="text-left px-5 py-4 font-medium text-[13px] text-encre-500 w-48"
+        >
+          {premiere}
+        </th>
+        {couleurs.map((c) => (
+          <th
+            key={c.couleur_numero}
+            scope={sousColonnes ? 'colgroup' : 'col'}
+            colSpan={sousColonnes ? 2 : 1}
+            className={`px-2 font-medium ${sousColonnes ? 'pt-3.5 pb-1' : 'py-4'}`}
+          >
+            <PastilleNuance hex={c.couleur_hex} numero={c.couleur_numero} />
+          </th>
+        ))}
+      </tr>
+      {sousColonnes && (
+        <tr>
+          {couleurs.map((c) => (
+            <Fragment key={c.couleur_numero}>
+              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">{t('fiche.pourcent')}</th>
+              <th scope="col" className="px-2 pt-1 pb-3 font-normal text-xs text-encre-500">{t('fiche.quantite')}</th>
+            </Fragment>
+          ))}
+        </tr>
+      )}
+    </thead>
+  );
+
+  const Info = ({ label, children, large = false }) => (
+    <div className={`flex flex-col gap-1 ${large ? 'col-span-2' : ''}`}>
+      <dt className="text-[13px] text-encre-500">{label}</dt>
+      <dd className="m-0 text-[15px] leading-relaxed">{children || '—'}</dd>
+    </div>
+  );
 
   return (
-    <div className="max-w-7xl mx-auto p-2 bg-white rounded shadow">
-      <h2 className="text-xl font-bold mb-4 text-center">
-        Fiche recette #{recette.numero_fiche}
-      </h2>
-
-      {/* ===== INFOS GÉNÉRALES ===== */}
-      <div className="print-container grid grid-cols-12 gap-1 mb-4">
-        <div className="col-span-12 md:col-span-2">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">N° DE FICHE:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.numero_fiche}</p>
-        </div>
-        <div className="col-span-12 md:col-span-2">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">DATE:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.date}</p>
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">NOM:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.nom || '--'}</p>
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">OBJET:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.objet || '--'}</p>
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">MATIÈRE:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.matiere || '--'}</p>
-        </div>
-        <div className="col-span-12 md:col-span-8">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">OBSERVATIONS:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.observations || '--'}</p>
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">PRÉ-MORDANÇAGE:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.pre_mordancage || '--'}</p>
-        </div>
-      </div>
-
+    <div className={`${cls.page} print-container flex flex-col gap-12 print:gap-2`}>
       {/* ===== EN-TÊTE ===== */}
-      <div className="grid grid-cols-12 gap-1 mb-4">
-        <div className="col-span-12 md:col-span-2">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">Rapport de bain:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.rapport_de_bain}</p>
-        </div>
-        <div className="col-span-12 md:col-span-2">
-          <p className="font-medium bg-green-100 p-1 rounded text-center text-xs">Nb parts totales:</p>
-          <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette.nb_parts_totales}</p>
+      <div className="flex flex-col gap-5">
+        <nav aria-label={t('commun.filAriane')} className="no-print flex gap-2 text-sm text-encre-500">
+          <Link to="/nuancier" className="text-sauge hover:text-sauge-fonce">{t('nav.nuancier')}</Link>
+          <span aria-hidden="true">/</span>
+          <span>{t('commun.fiche', { n: recette.numero_fiche })}</span>
+        </nav>
+        <div className="flex flex-wrap gap-6 justify-between items-end">
+          <div className="flex flex-col gap-2.5">
+            <p className="m-0 text-sm text-encre-500">{t('fiche.sousTitre', { date: formaterDate(recette.date, langue) })}</p>
+            <h1 className="m-0 font-serif font-normal text-[52px] tracking-tight">{t('commun.fiche', { n: recette.numero_fiche })}</h1>
+          </div>
+          <div className="flex gap-2.5">
+            <button type="button" onClick={() => window.print()} className={cls.btnSecondaire}>
+              <Icone.Imprimante />{t('fiche.imprimer')}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
+              className={cls.btnPrimaire}
+            >
+              <Icone.Crayon />{t('fiche.modifier')}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ===== COULEURS OBTENUES ===== */}
+      <section aria-label={t('fiche.couleurs')} className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+        {couleurs.map((c) => (
+          <div key={c.couleur_numero} className="flex flex-col gap-2.5">
+            <div
+              className="relative h-36 print:h-10 rounded-[14px] border border-black/5"
+              style={{ backgroundColor: c.couleur_hex || '#FFFFFF' }}
+            >
+              <span className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-lin-50/90 flex items-center justify-center text-[13px] font-semibold">
+                {c.couleur_numero}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5 font-mono text-xs text-encre-600">
+              <span className="font-medium text-encre">{c.couleur_hex || '—'}</span>
+              <span>Lab {c.couleur_lab_l}, {c.couleur_lab_a}, {c.couleur_lab_b}</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* ===== INFORMATIONS + BAIN ===== */}
+      <section className="flex flex-wrap gap-6">
+        <div className={`${cls.carte} flex-[1_1_520px] p-7 flex flex-col gap-5`}>
+          <h2 className={`m-0 ${cls.h3}`}>{t('fiche.informations')}</h2>
+          <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-5">
+            <Info label={t('fiche.nom')}>{recette.nom}</Info>
+            <Info label={t('fiche.date')}>{formaterDate(recette.date, langue)}</Info>
+            <Info label={t('fiche.objet')}>{recette.objet}</Info>
+            <Info label={t('fiche.matiere')}>{recette.matiere}</Info>
+            <Info label={t('fiche.preMordancage')} large>{recette.pre_mordancage}</Info>
+            <Info label={t('fiche.observations')} large>{recette.observations}</Info>
+          </dl>
+        </div>
+
+        <div className={`${cls.carte} flex-[1_1_400px] p-7 flex flex-col gap-5`}>
+          <h2 className={`m-0 ${cls.h3}`}>{t('fiche.bain')}</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="px-4 py-3.5 rounded-xl bg-lin-200">
+              <div className="text-[13px] text-encre-500">{t('fiche.rapportDeBain')}</div>
+              <div className="mt-1 font-mono text-[22px] font-medium">
+                {recette.rapport_de_bain ? `1:${recette.rapport_de_bain}` : '—'}
+              </div>
+            </div>
+            <div className="px-4 py-3.5 rounded-xl bg-lin-200">
+              <div className="text-[13px] text-encre-500">{t('fiche.partsTotales')}</div>
+              <div className="mt-1 font-mono text-[22px] font-medium">{recette.nb_parts_totales ?? '—'}</div>
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-encre-500">
+                <th className="py-2 font-medium text-[13px]">{t('fiche.colorant')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.poudre')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {indexColorants.length === 0 && (
+                <tr className="border-t border-lin-400"><td colSpan="3" className="py-2.5 text-encre-500">—</td></tr>
+              )}
+              {indexColorants.map((i) => (
+                <tr key={i} className="border-t border-lin-400">
+                  <td className="py-2.5">{recette[`colorant_${i}`]}</td>
+                  <td className="py-2.5 text-right font-mono">{recette[`colorant_${i}_qte_poudre`] || '0'}</td>
+                  <td className="py-2.5 text-right font-mono">{recette[`colorant_${i}_dilution`] || '1'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-encre-500">
+                <th className="py-2 font-medium text-[13px]">{t('fiche.mordantNuancage')}</th>
+                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {indexMordants.length === 0 && (
+                <tr className="border-t border-lin-400"><td colSpan="2" className="py-2.5 text-encre-500">—</td></tr>
+              )}
+              {indexMordants.map((i) => (
+                <tr key={i} className="border-t border-lin-400">
+                  <td className="py-2.5">{recette[`mordant_${i}`]}</td>
+                  <td className="py-2.5 text-right font-mono">{recette[`mordant_${i}_dilution`] || '1'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ===== NUANCES ===== */}
+      <section className="flex flex-col gap-4">
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.nuances')}</h2>
+        <div className={cls.tableau}>
+          <table className="w-full min-w-[900px] text-sm">
+            <EnTeteNuances premiere={t('fiche.nuance')} />
+            <tbody>
+              {lignesNuances.map((ligne) => (
+                <tr key={ligne.label} className="border-t border-lin-400">
+                  <th scope="row" className="text-left px-5 py-3.5 font-normal text-encre-700">
+                    {ligne.label}
+                    {ligne.aide && <span className="block text-xs text-encre-500">{ligne.aide}</span>}
+                  </th>
+                  {couleurs.map((c) => (
+                    <td key={c.couleur_numero} className="px-3 py-3.5 text-center font-mono">
+                      {ligne.valeur(c)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* ===== COLORANTS ===== */}
-      <div className="mb-4">
-        <div className="grid grid-cols-12 gap-1 mb-1">
-          <div className="col-span-4">
-            <p className="font-medium text-center bg-green-100 p-1 rounded text-xs">Colorants</p>
-          </div>
-          <div className="col-span-2">
-            <p className="font-medium text-center bg-green-100 p-1 rounded text-xs">[C] poudre</p>
-          </div>
-          <div className="col-span-2">
-            <p className="font-medium text-center bg-green-100 p-1 rounded text-xs">Dil. sol. mère</p>
-          </div>
+      <section className="flex flex-col gap-4">
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.colorants')}</h2>
+        <div className={cls.tableau}>
+          <table className="w-full min-w-[1000px] text-sm">
+            <EnTeteNuances premiere={t('fiche.colorant')} sousColonnes />
+            <tbody>
+              {indexColorants.map((i) => (
+                <tr key={i} className="border-t border-lin-400">
+                  <th scope="row" className="text-left px-5 py-3.5 font-normal text-encre-700">
+                    {recette[`colorant_${i}`] || '—'}
+                    <span className="block text-xs text-encre-500">{getUnite(i, 'colorant')}</span>
+                  </th>
+                  {couleurs.map((couleur) => (
+                    <Fragment key={couleur.couleur_numero}>
+                      <td className="px-2 py-3.5 text-center font-mono text-encre-500">
+                        {aff(calculatePourcentColorant(couleur, i))}
+                      </td>
+                      <td className="px-2 py-3.5 text-center font-mono font-medium">
+                        {aff(calculateQuantiteColorant(couleur, i))}
+                      </td>
+                    </Fragment>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {['colorant_1', 'colorant_2', 'colorant_3'].map((colorant) => (
-          <div key={colorant} className="grid grid-cols-12 gap-1 mb-1">
-            <div className="col-span-4">
-              <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette[colorant] || '--'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette[`${colorant}_qte_poudre`] || '0'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette[`${colorant}_dilution`] || '1'}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      </section>
 
       {/* ===== MORDANTS ===== */}
-      <div className="mb-4">
-        <div className="grid grid-cols-12 gap-1 mb-1">
-          <div className="col-span-4">
-            <p className="font-medium text-center bg-green-100 p-1 rounded text-xs">Mordants / nuançage</p>
-          </div>
-          <div className="col-span-2">
-            <p className="font-medium text-center bg-green-100 p-1 rounded text-xs">Dil. sol. mère</p>
-          </div>
+      <section className="flex flex-col gap-4">
+        <h2 className={`m-0 ${cls.h2}`}>{t('fiche.mordants')}</h2>
+        <div className={cls.tableau}>
+          <table className="w-full min-w-[1000px] text-sm">
+            <EnTeteNuances premiere={t('fiche.mordant')} sousColonnes />
+            <tbody>
+              {indexMordants.map((i) => (
+                <tr key={i} className="border-t border-lin-400">
+                  <th scope="row" className="text-left px-5 py-3.5 font-normal text-encre-700">
+                    {recette[`mordant_${i}`] || '—'}
+                    <span className="block text-xs text-encre-500">{getUnite(i, 'mordant')}</span>
+                  </th>
+                  {couleurs.map((couleur) => {
+                    const pourcentage = couleur[`pourcent_mordant_${i}`];
+                    return (
+                      <Fragment key={couleur.couleur_numero}>
+                        <td className="px-2 py-3.5 text-center font-mono text-encre-500">{aff(pourcentage)}</td>
+                        <td className="px-2 py-3.5 text-center font-mono font-medium">
+                          {aff(calculateQuantiteMordant(couleur, i))}
+                        </td>
+                      </Fragment>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {['mordant_1', 'mordant_2', 'mordant_3'].map((mordant) => (
-          <div key={mordant} className="grid grid-cols-12 gap-1 mb-1">
-            <div className="col-span-4">
-              <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette[mordant] || '--'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="p-1 border rounded bg-green-50 text-sm text-center">{recette[`${mordant}_dilution`] || '1'}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ===== TABLEAU DES COULEURS ===== */}
-      <div className="overflow-x-auto mb-4">
-        <table className="min-w-full bg-white border text-xs">
-          <thead>
-            <tr>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]"></th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">1</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">2</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">3</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">4</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">5</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">6</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Nombre de parts</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`nb_parts_${index}`} className="py-1 px-1 border bg-green-50 text-center">
-                  <div className="grid grid-cols-3 gap-0.5">
-                    <p className="p-1 border rounded text-sm text-center bg-green-50">{couleur.nb_part_colorant_1}</p>
-                    <p className="p-1 border rounded text-sm text-center bg-green-50">{couleur.nb_part_colorant_2}</p>
-                    <p className="p-1 border rounded text-sm text-center bg-green-50">{couleur.nb_part_colorant_3}</p>
-                  </div>
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Valeur de la part</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`valeur_part_${index}`} className="py-1 px-1 border bg-gray-100 text-center">
-                  {calculateValeurDeLaPart(couleur.profondeur_ton)}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Profondeur ton</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`profondeur_${index}`} className="py-1 px-1 border bg-green-50 text-center">
-                  {couleur.profondeur_ton.toFixed(2)}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Poids du tissu</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`poids_${index}`} className="py-1 px-1 border bg-green-50 text-center">
-                  {couleur.poids_tissu}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Volume du bain</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`volume_bain_${index}`} className="py-1 px-1 border bg-gray-100 text-center">
-                  {calculateVolumeDuBain(couleur.poids_tissu)}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Bleu de départ</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`bleu_depart_${index}`} className="py-1 px-1 border bg-green-50 text-center">
-                  {couleur.bleu_depart}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Informations</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`info_${index}`} className="py-1 px-1 border bg-green-50 text-center">
-                  {couleur.info}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* ===== COLORANTS DÉTAILS ===== */}
-      <div className="mb-4">
-        <table className="min-w-full bg-white border text-xs">
-          <thead>
-            <tr>
-              <th rowSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">Colorants</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">1</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">2</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">3</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">4</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">5</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">6</th>
-            </tr>
-            <tr>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Colorant 1 */}
-            <tr>
-                <td className="py-1 px-1 border text-center bg-yellow-50">{recette.colorant_1 || '--'}</td>
-                {couleurs.map((couleur, index) => {
-                  const quantite = calculateQuantiteColorant(couleur, 1);
-                  const pourcent = calculatePourcentColorant(couleur, 1);
-                  const unite = getUnite(1, `colorant`);
-                  return (
-                    <>
-                      <td key={`gaude_pct_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{pourcent}</td>
-                      <td key={`gaude_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                    </>
-                  );
-                })}
-                
-              </tr>
-              {/* Colorant 2 */}
-              <tr>
-                <td className="py-1 px-1 border text-center bg-yellow-50">{recette.colorant_2 || '--'}</td>
-                {couleurs.map((couleur, index) => {
-                  const quantite = calculateQuantiteColorant(couleur, 2);
-                  const pourcent = calculatePourcentColorant(couleur, 2);
-                  const unite = getUnite(2, `colorant`);
-                  return (
-                    <>
-                      <td key={`garance_pct_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{pourcent}</td>
-                      <td key={`garance_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                    </>
-                  );
-                })}
-                
-              </tr>
-              {/* Colorant 3 */}
-              <tr>
-                <td className="py-1 px-1 border text-center bg-yellow-50">{recette.colorant_3 || '--'}</td>
-                {couleurs.map((couleur, index) => {
-                  const quantite = calculateQuantiteColorant(couleur, 3);
-                  const pourcent = calculatePourcentColorant(couleur, 3);
-                  const unite = getUnite(3, `colorant`);
-                  return (
-                    <>
-                      <td key={`indigo_pct_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{pourcent}</td>
-                      <td key={`indigo_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                    </>
-                  );
-                })}
-              
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* ===== MORDANTS DÉTAILS ===== */}
-      <div className="mb-4">
-        <table className="min-w-full bg-white border text-xs">
-          <thead>
-            <tr>
-              <th rowSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">Mordants</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">1</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">2</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">3</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">4</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">5</th>
-              <th colSpan="2" className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">6</th>
-            </tr>
-            <tr>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">%</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100">quantité</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Mordant 1 */}
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">{recette.mordant_1 || '--'}</td>
-              {couleurs.map((couleur, index) => {
-                const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
-                const pourcentage = couleur.pourcent_mordant_1;
-                const quantite = calculateQuantiteMordant(pourcentage, valeurDeLaPart);
-                const unite = getUnite(1, `mordant`);
-                return (
-                  <>
-                    <td key={`mordant1_pct_${index}`} className="py-1 px-1 border bg-green-50 text-center">{pourcentage}</td>
-                    <td key={`mordant1_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                  </>
-                );
-              })}
-              
-            </tr>
-            {/* Mordant 2 */}
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">{recette.mordant_2 || '--'}</td>
-              {couleurs.map((couleur, index) => {
-                const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
-                const pourcentage = couleur.pourcent_mordant_2;
-                const quantite = calculateQuantiteMordant(pourcentage, valeurDeLaPart);
-                const unite = getUnite(2, `mordant`);
-                return (
-                  <>
-                    <td key={`mordant2_pct_${index}`} className="py-1 px-1 border bg-green-50 text-center">{pourcentage}</td>
-                    <td key={`mordant2_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                  </>
-                );
-              })}
-              
-            </tr>
-            {/* Mordant 3 */}
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">{recette.mordant_3 || '--'}</td>
-              {couleurs.map((couleur, index) => {
-                const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
-                const pourcentage = couleur.pourcent_mordant_3;
-                const quantite = calculateQuantiteMordant(pourcentage, valeurDeLaPart);
-                const unite = getUnite(3, `mordant`);
-                return (
-                  <>
-                    <td key={`mordant3_pct_${index}`} className="py-1 px-1 border bg-green-50 text-center">{pourcentage}</td>
-                    <td key={`mordant3_qte_${index}`} className="py-1 px-1 border bg-gray-100 text-center">{quantite} {unite}</td>
-                  </>
-                );
-              })}
-              
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      </section>
 
       {/* ===== VOLUME D'EAU INITIAL ===== */}
-      <div className="mb-4">
-        <table className="min-w-full bg-white border text-xs">
-          <thead>
-            <tr>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">Volume d'eau initial</th>
-              {couleurs.map((_, index) => (
-                <th key={`vol_eau_${index}`} className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">
-                  {index + 1}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50"></td>
-              {couleurs.map((couleur, index) => {
-                const valeurDeLaPart = calculateValeurDeLaPart(couleur.profondeur_ton);
-                const quantitesColorants = [
-                  calculateQuantiteColorant(couleur, 1),
-                  calculateQuantiteColorant(couleur, 2),
-                  calculateQuantiteColorant(couleur, 3),
-                ];
-                const quantitesMordants = [
-                  calculateQuantiteMordant(couleur.pourcent_mordant_1, valeurDeLaPart),
-                  calculateQuantiteMordant(couleur.pourcent_mordant_2, valeurDeLaPart),
-                  calculateQuantiteMordant(couleur.pourcent_mordant_3, valeurDeLaPart),
-                ];
-                const allQuantites = [...quantitesColorants, ...quantitesMordants];
-                const volumeDuBain = calculateVolumeDuBain(couleur.poids_tissu);
-                return (
-                  <td key={`vol_eau_val_${index}`} className="py-1 px-1 border bg-gray-100 text-center">
-                    {calculateVolumeEauInitial(volumeDuBain, allQuantites)}
-                  </td>
-                );
-              })}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* ===== COULEURS HEX/LAB ===== */}
-      <div className="mb-4">
-        <table className="min-w-full bg-white border text-xs">
-          <thead>
-            <tr>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]"></th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">1</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">2</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">3</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">4</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">5</th>
-              <th className="py-2 px-1 border text-center bg-yellow-100 w-[14.2857%]">6</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Code HEX</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`hex_${index}`} className="py-1 px-1 border bg-yellow-50">
-                  <div className="flex items-center justify-center">
-                    <div
-                      className="w-6 h-6 mr-1 border"
-                      style={{ backgroundColor: couleur.couleur_hex || '#FFFFFF' }}
-                    ></div>
-                    <p className="text-sm">{couleur.couleur_hex}</p>
-                  </div>
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-1 px-1 border text-center bg-yellow-50">Code Lab</td>
-              {couleurs.map((couleur, index) => (
-                <td key={`lab_${index}`} className="py-1 px-1 border bg-yellow-50">
-                  <div className="grid grid-cols-3 gap-0.5">
-                    <p className="p-1 border rounded text-sm text-center bg-yellow-50">{couleur.couleur_lab_l}</p>
-                    <p className="p-1 border rounded text-sm text-center bg-yellow-50">{couleur.couleur_lab_a}</p>
-                    <p className="p-1 border rounded text-sm text-center bg-yellow-50">{couleur.couleur_lab_b}</p>
-                  </div>
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* --- Bouton pour modifier --- */}
-      <div className="flex gap-6 mt-6">
-      <button
-        onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
-        className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-      >
-        Modifier
-      </button>
-      <button
-        onClick={() => window.print()}
-        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-      >
-        Imprimer la fiche
-      </button>
-      </div>
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap justify-between items-baseline gap-4">
+          <h2 className={`m-0 ${cls.h2}`}>{t('fiche.volumeEau')}</h2>
+          <p className="m-0 text-sm text-encre-500">{t('fiche.volumeEauNote')}</p>
+        </div>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          {couleurs.map((c) => (
+            <div key={c.couleur_numero} className={`${cls.carte} rounded-2xl flex items-center gap-3.5 px-5 py-4`}>
+              <span
+                className="w-8 h-8 flex-none rounded-lg border border-black/5 flex items-center justify-center text-[13px] font-semibold"
+                style={{ backgroundColor: c.couleur_hex || '#FFFFFF' }}
+              >
+                {c.couleur_numero}
+              </span>
+              <span className="font-mono text-[22px] font-medium">{aff(volumeEauInitial(c))}</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 };

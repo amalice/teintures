@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-lin text-encre font-sans antialiased;
+  }
+  /* Masque les flèches des champs numériques dans les tableaux étroits */
+  input[type='number'].sans-fleches::-webkit-outer-spin-button,
+  input[type='number'].sans-fleches::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'].sans-fleches {
+    -moz-appearance: textfield;
+  }
+}
+
 @media print {
   /* Masquer les boutons */
   button {
@@ -13,14 +28,19 @@
     display: none !important;
   }
 
-  /* Masquer les titres (si tu as des titres avec la classe page-title) */
-  .page-title, h1, h2, h3 {
+  /* Masquer les titres marqués avec la classe page-title */
+  .page-title {
     display: none !important;
   }
 
   /* Masquer les éléments marqués avec la classe no-print */
   .no-print {
     display: none !important;
+  }
+
+  /* Fond blanc à l'impression */
+  body {
+    background: #ffffff !important;
   }
 
   /* Réduire les marges et forcer le contenu sur une page */

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import chroma from 'chroma-js';
+import { cls, Chargement, Message } from './ui';
+import { useT, useNombre } from '../i18n';
 
 // ========== CONVERSION COULEUR ==========
 const hexToRgb = (hex) => {
@@ -52,48 +55,61 @@ const hexToLab = (hex) => {
 };
 
 // ========== CALCUL DELTA E2000 ==========
+// Formule CIEDE2000 (Sharma, Wu & Dalal, 2005), angles en degrés.
 const deltaE2000 = (lab1, lab2) => {
-  const [L1, a1, b1] = lab1;
-  const [L2, a2, b2] = lab2;
+  const [L1, a1, b1] = lab1.map(Number);
+  const [L2, a2, b2] = lab2.map(Number);
+  const rad = (deg) => (deg * Math.PI) / 180;
+  const deg = (r) => (r * 180) / Math.PI;
 
-  const avgL = (L1 + L2) / 2;
   const C1 = Math.sqrt(a1 * a1 + b1 * b1);
   const C2 = Math.sqrt(a2 * a2 + b2 * b2);
   const avgC = (C1 + C2) / 2;
-
   const G = 0.5 * (1 - Math.sqrt(Math.pow(avgC, 7) / (Math.pow(avgC, 7) + Math.pow(25, 7))));
+
   const a1p = (1 + G) * a1;
   const a2p = (1 + G) * a2;
-
   const C1p = Math.sqrt(a1p * a1p + b1 * b1);
   const C2p = Math.sqrt(a2p * a2p + b2 * b2);
-  const avgCp = (C1p + C2p) / 2;
 
-  const h1p = Math.atan2(b1, a1p);
-  const h2p = Math.atan2(b2, a2p);
-
-  const deltaHp = Math.abs(h1p - h2p) <= Math.PI
-    ? h2p - h1p
-    : h2p - h1p > Math.PI
-      ? h2p - h1p - 2 * Math.PI
-      : h2p - h1p + 2 * Math.PI;
+  // Angles de teinte ramenés dans [0, 360[
+  const h1p = (a1p === 0 && b1 === 0) ? 0 : (deg(Math.atan2(b1, a1p)) + 360) % 360;
+  const h2p = (a2p === 0 && b2 === 0) ? 0 : (deg(Math.atan2(b2, a2p)) + 360) % 360;
 
   const deltaLp = L2 - L1;
   const deltaCp = C2p - C1p;
 
-  const avgHp = (h1p + h2p) / 2;
-  const T = 1 - 0.17 * Math.cos(avgHp - Math.PI / 6) +
-            0.24 * Math.cos(2 * avgHp) +
-            0.32 * Math.cos(3 * avgHp + Math.PI / 30) -
-            0.2 * Math.cos(4 * avgHp - Math.PI * 21 / 60);
+  // Écart de teinte Δh' puis ΔH' (c'est ce terme qui manquait)
+  let deltahp = 0;
+  if (C1p * C2p !== 0) {
+    deltahp = h2p - h1p;
+    if (deltahp > 180) deltahp -= 360;
+    else if (deltahp < -180) deltahp += 360;
+  }
+  const deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(rad(deltahp / 2));
+
+  const avgL = (L1 + L2) / 2;
+  const avgCp = (C1p + C2p) / 2;
+
+  // Teinte moyenne, en tenant compte du passage 360° → 0°
+  let avgHp;
+  if (C1p * C2p === 0) avgHp = h1p + h2p;
+  else if (Math.abs(h1p - h2p) <= 180) avgHp = (h1p + h2p) / 2;
+  else if (h1p + h2p < 360) avgHp = (h1p + h2p + 360) / 2;
+  else avgHp = (h1p + h2p - 360) / 2;
+
+  const T = 1
+    - 0.17 * Math.cos(rad(avgHp - 30))
+    + 0.24 * Math.cos(rad(2 * avgHp))
+    + 0.32 * Math.cos(rad(3 * avgHp + 6))
+    - 0.20 * Math.cos(rad(4 * avgHp - 63));
 
   const SL = 1 + (0.015 * Math.pow(avgL - 50, 2)) / Math.sqrt(20 + Math.pow(avgL - 50, 2));
   const SC = 1 + 0.045 * avgCp;
   const SH = 1 + 0.015 * avgCp * T;
-
-  const deltaTheta = (Math.PI / 6) * Math.exp(-Math.pow((avgHp - Math.PI * 275 / 180) / (Math.PI * 25 / 180), 2));
+  const deltaTheta = 30 * Math.exp(-Math.pow((avgHp - 275) / 25, 2));
   const RC = 2 * Math.sqrt(Math.pow(avgCp, 7) / (Math.pow(avgCp, 7) + Math.pow(25, 7)));
-  const RT = -RC * Math.sin(2 * deltaTheta);
+  const RT = -RC * Math.sin(rad(2 * deltaTheta));
 
   return Math.sqrt(
     Math.pow(deltaLp / SL, 2) +
@@ -105,12 +121,14 @@ const deltaE2000 = (lab1, lab2) => {
 
 // ========== COMPOSANT ==========
 const RechercheCouleur = ({ projetId, projetNom }) => {
-  const navigate = useNavigate(); // ✅ Déclarer navigate à l'intérieur du composant
+  const t = useT();
+  const nombre = useNombre();
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState('hex');
   const [results, setResults] = useState([]);
+  const [cible, setCible] = useState(null); // couleur recherchée { hex, lab }
 
   // Récupération des couleurs
   useEffect(() => {
@@ -155,7 +173,9 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
     fetchCouleurs();
   }, [projetNom]);
 
-  const handleSearch = () => {
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    setCible(null);
     if (!query.trim()) {
       setResults([]);
       return;
@@ -179,6 +199,15 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
       queryLab = parts;
     }
 
+    // Couleur cible affichée à côté de chaque résultat
+    let cibleHex = null;
+    try {
+      cibleHex = chroma.lab(queryLab[0], queryLab[1], queryLab[2]).hex().toUpperCase();
+    } catch {
+      cibleHex = null;
+    }
+    setCible({ hex: cibleHex, lab: queryLab });
+
     // Calcul des distances et tri
     const results = couleurs
       .map(couleur => {
@@ -194,63 +223,123 @@ const RechercheCouleur = ({ projetId, projetNom }) => {
     setResults(results);
   };
 
-  if (loading) return <div className="text-center py-4">Chargement du nuancier...</div>;
+  const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(1) : '—');
+
+  // Aperçu en direct de la saisie (avant même de lancer la recherche)
+  let apercu = null;
+  if (searchType === 'hex') {
+    const lab = query.trim() ? hexToLab(query.trim()) : null;
+    if (lab && lab.every(Number.isFinite) && chroma.valid(query.trim())) {
+      apercu = { hex: chroma(query.trim()).hex().toUpperCase(), autre: `Lab ${lab.map(fmt).join(', ')}` };
+    }
+  } else {
+    const parts = query.split(',').map((p) => parseFloat(p.trim()));
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      try {
+        const hex = chroma.lab(parts[0], parts[1], parts[2]).hex().toUpperCase();
+        apercu = { hex, autre: `HEX ${hex}` };
+      } catch {
+        apercu = null;
+      }
+    }
+  }
+
+  if (loading) return <Chargement texte={t('nuancier.chargement')} />;
+  if (!projetNom) return <Message>{t('commun.selectionnezProjet')}</Message>;
 
   return (
-    <div className="p-4">
-      <div className="flex space-x-2 mb-4">
-        <select
-          value={searchType}
-          onChange={(e) => setSearchType(e.target.value)}
-          className="p-2 border rounded"
-        >
-          <option value="hex">Rechercher par HEX</option>
-          <option value="lab">Rechercher par Lab (L,a,b)</option>
-        </select>
-
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchType === 'hex' ? 'Ex: #FF0000 ou FF0000' : 'Ex: 50, 20, -10'}
-          className="flex-1 p-2 border rounded"
-        />
-
-        <button
-          onClick={handleSearch}
-          className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-        >
-          Rechercher
-        </button>
+    <div className={`${cls.page} pt-14 flex flex-col gap-10`}>
+      <div className="flex flex-col gap-2.5">
+        <h1 className={`m-0 ${cls.h1}`}>{t('recherche.titre')}</h1>
+        <p className="m-0 text-base text-encre-500 max-w-xl leading-relaxed">
+          {t('recherche.intro')}
+        </p>
       </div>
 
-      {results.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Résultats (10 couleurs les plus proches triées par similarité):</h3>
-          <div className="flex flex-wrap gap-4">
-            {results.map((couleur, index) => (
-              <div key={index} className="text-center border rounded p-4 w-48">
-                <div
-                  className="w-24 h-24 mx-auto mb-2 rounded shadow"
-                  style={{ backgroundColor: couleur.hex || '#FFFFFF' }}
-                ></div>
-                <p><strong>Fiche:</strong> {couleur.fiche}</p>
-                <p><strong>Couleur:</strong> {couleur.indexCouleur}</p>
-                <p><strong>HEX:</strong> {couleur.hex}</p>
-                <p><strong>Lab:</strong> {couleur.lab_L.toFixed(1)}, {couleur.lab_a.toFixed(1)}, {couleur.lab_b.toFixed(1)}</p>
-                <p><strong>Colorants:</strong> {couleur.colorants || '--'}</p>
-                <p><strong>ΔE2000:</strong> {couleur.distance.toFixed(2)}</p>
-                <button
-                  onClick={() => navigate(`/recette/${couleur.recette_id}`)} // ✅ Utilise navigate pour aller vers la recette
-                  className="mt-2 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
-                >
-                  Voir recette
-                </button>
-              </div>
+      <div className="flex flex-wrap gap-8 items-start">
+        <form
+          onSubmit={handleSearch}
+          className={`${cls.carte} flex-[1_1_320px] max-w-sm flex flex-col gap-5 p-7`}
+        >
+          <div
+            className="h-44 rounded-[14px] border border-black/5 flex items-center justify-center text-sm text-encre-500"
+            style={{ backgroundColor: apercu ? apercu.hex : undefined }}
+          >
+            {!apercu && t('recherche.apercu')}
+          </div>
+
+          <div role="group" aria-label={t('recherche.format')} className="flex gap-1 p-1 rounded-full bg-lin-300">
+            {[['hex', 'HEX'], ['lab', 'Lab']].map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                onClick={() => setSearchType(id)}
+                aria-pressed={searchType === id}
+                className={`flex-1 h-10 rounded-full text-sm font-medium text-encre ${searchType === id ? 'bg-lin-50' : ''}`}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        </div>
-      )}
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="couleur-cible" className={cls.label}>
+              {searchType === 'hex' ? t('recherche.labelHex') : t('recherche.labelLab')}
+            </label>
+            <input
+              id="couleur-cible"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchType === 'hex' ? t('recherche.exempleHex') : t('recherche.exempleLab')}
+              className={`${cls.inputMono} h-12 px-4 text-base`}
+            />
+            <span className="font-mono text-xs text-encre-500 min-h-[16px]">{apercu ? apercu.autre : ''}</span>
+          </div>
+
+          <button type="submit" className={`${cls.btnPrimaire} h-12 text-base`}>{t('recherche.rechercher')}</button>
+        </form>
+
+        <section aria-label={t('recherche.resultats')} className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">
+          {results.length > 0 ? (
+            <>
+              <div className="flex flex-wrap justify-between items-baseline gap-4">
+                <h2 className={`m-0 ${cls.h3} text-[26px]`}>{t('recherche.plusProches')}</h2>
+                <p className="m-0 text-sm text-encre-500">{t('recherche.nbResultats', { n: results.length })}</p>
+              </div>
+              <div className="rounded-[20px] border border-lin-500 bg-lin-100 overflow-hidden">
+                {results.map((couleur, index) => (
+                  <Link
+                    key={index}
+                    to={`/recette/${couleur.recette_id}`}
+                    className="flex flex-wrap items-center gap-5 px-6 py-4 border-b last:border-b-0 border-lin-400 no-underline text-encre hover:bg-lin-50"
+                  >
+                    <span className="w-6 font-mono text-sm font-medium text-encre-500">{index + 1}</span>
+                    <span aria-hidden="true" className="flex w-28 h-14 rounded-xl overflow-hidden flex-none border border-black/5">
+                      <span className="flex-1" style={{ backgroundColor: cible?.hex || '#FFFFFF' }} />
+                      <span className="flex-1" style={{ backgroundColor: couleur.hex || '#FFFFFF' }} />
+                    </span>
+                    <span className="flex-[1_1_200px] flex flex-col gap-1 min-w-0">
+                      <span className="text-base font-medium">{t('commun.ficheNuance', { f: couleur.fiche, n: couleur.indexCouleur })}</span>
+                      <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
+                      <span className="font-mono text-xs text-encre-500">
+                        {couleur.hex} · Lab {fmt(couleur.lab_L)}, {fmt(couleur.lab_a)}, {fmt(couleur.lab_b)}
+                      </span>
+                    </span>
+                    <span className="min-w-[110px] text-right font-mono text-lg font-medium">
+                      ΔE {nombre(couleur.distance.toFixed(2).replace('.', ','))}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-lin-600 px-6 py-16 text-center text-encre-500">
+              {cible ? t('recherche.aucunResultat') : t('recherche.invite')}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 };
