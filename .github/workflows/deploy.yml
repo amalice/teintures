@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
+  # Permet aussi de relancer le déploiement à la main depuis l'onglet Actions
+  workflow_dispatch:
+
+# Autorise le jeton automatique GITHUB_TOKEN à pousser sur la branche gh-pages
+permissions:
+  contents: write
 
 jobs:
   deploy:
@@ -27,12 +33,13 @@ jobs:
 
       - name: Configure Git identity
         run: |
-          git config --global user.email "amalice@users.noreply.github.com"
-          git config --global user.name "amalice"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
       - name: Configure Git remote URL with token
         run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GH_PAGES_TOKEN }}@github.com/amalice/teintures.git
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
+      # Publie le dossier build/ déjà construit (sans relancer le build)
       - name: Deploy to GitHub Pages
-        run: npm run deploy
+        run: npx gh-pages -d build -b gh-pages --dest .
