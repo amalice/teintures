@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
 import { CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, numeroFicheExiste } from '../utils/recettes';
 import { labVersLch, lchVersLab, hexNuance } from '../utils/couleurs';
 import { useNavigate, Link } from 'react-router-dom';
-import { cls, Icone, PastilleNuance, fondCouleur } from './ui';
+import { cls, Icone, PastilleNuance, fondCouleur, FenetreAlerte } from './ui';
 import { useT, useNombre } from '../i18n';
 
 // ===== Petits composants de mise en page =====
@@ -200,6 +200,17 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   );
 
   const [error, setError] = useState('');
+  // Numéro de fiche déjà utilisé dans le projet : affiché dans une fenêtre pop-up
+  const [numeroEnDouble, setNumeroEnDouble] = useState(null);
+  const fermerAlerteNumero = useCallback(() => {
+    setNumeroEnDouble(null);
+    // On replace le curseur dans le champ à corriger
+    const champ = document.getElementById('f-numero_fiche');
+    if (champ) {
+      champ.focus();
+      champ.select();
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const t = useT();
@@ -353,7 +364,8 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       // Un numéro de fiche ne peut exister qu'une fois par projet
       // (en modification, la fiche elle-même n'est pas comptée).
       if (await numeroFicheExiste(tableName, numero, recetteId)) {
-        throw new Error(t('form.numeroExiste', { n: numero }));
+        setNumeroEnDouble(numero);
+        return;
       }
 
       const finalRecetteId = recetteId || crypto.randomUUID();
@@ -396,7 +408,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       if (onSuccess) onSuccess();
     } catch (err) {
       // 23P01 : contrainte d'unicité du numéro de fiche côté Supabase (enregistrement simultané)
-      if (err?.code === '23P01') setError(t('form.numeroExiste', { n: String(recette.numero_fiche).trim() }));
+      if (err?.code === '23P01') setNumeroEnDouble(String(recette.numero_fiche).trim());
       else setError(err.message);
       console.error(err);
     } finally {
@@ -429,6 +441,12 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className={`${cls.page} flex flex-col gap-8`}>
+      {numeroEnDouble && (
+        <FenetreAlerte titre={t('form.titreNumeroExiste')} onFermer={fermerAlerteNumero}>
+          {t('form.numeroExiste', { n: numeroEnDouble })}
+        </FenetreAlerte>
+      )}
+
       {/* ===== EN-TÊTE ===== */}
       <div className="flex flex-col gap-5">
         {recetteId && (

@@ -1,4 +1,5 @@
 // Classes et petits composants partagés du nouveau design (beige / vert / brun).
+import { useEffect, useRef } from 'react';
 import { useT } from '../i18n';
 
 export const cls = {
@@ -63,6 +64,47 @@ export const Message = ({ children, erreur = false }) => (
     {children}
   </div>
 );
+
+// Fenêtre d'alerte (pop-up) : un titre, un message et un bouton pour fermer.
+// Se ferme avec le bouton, la touche Échap ou un clic sur le fond.
+export const FenetreAlerte = ({ titre, children, onFermer }) => {
+  const t = useT();
+  const bouton = useRef(null);
+
+  useEffect(() => {
+    bouton.current?.focus();
+    const surTouche = (e) => {
+      if (e.key === 'Escape') onFermer();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [onFermer]);
+
+  return (
+    <div
+      className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-encre/40"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onFermer();
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="fenetre-alerte-titre"
+        aria-describedby="fenetre-alerte-message"
+        className="w-full max-w-md rounded-[20px] border border-lin-500 bg-lin-50 p-7 shadow-xl flex flex-col gap-5"
+      >
+        <h2 id="fenetre-alerte-titre" className={`m-0 ${cls.h3}`}>{titre}</h2>
+        <p id="fenetre-alerte-message" className="m-0 text-[15px] leading-relaxed text-encre-700">{children}</p>
+        <div className="flex justify-end">
+          <button ref={bouton} type="button" onClick={onFermer} className={cls.btnPrimaire}>
+            {t('commun.compris')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Icone = {
   Chevron: (p) => (
