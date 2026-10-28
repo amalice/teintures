@@ -1,4 +1,5 @@
 // Classes et petits composants partagés du nouveau design (beige / vert / brun).
+import { useEffect, useRef } from 'react';
 import { useT } from '../i18n';
 
 export const cls = {
@@ -21,6 +22,8 @@ export const cls = {
     'inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-sauge text-lin-50 text-[15px] font-medium hover:bg-sauge-fonce disabled:opacity-60 disabled:cursor-not-allowed',
   btnSecondaire:
     'inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl border border-lin-600 bg-lin-50 text-encre text-[15px] font-medium hover:border-sauge',
+  btnDanger:
+    'inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl border border-lin-600 bg-lin-50 text-alerte-texte text-[15px] font-medium hover:bg-alerte-fond hover:border-alerte-texte disabled:opacity-60 disabled:cursor-not-allowed',
   carte: 'rounded-[20px] border border-lin-500 bg-lin-50',
   tableau: 'overflow-x-auto rounded-[20px] border border-lin-500 bg-lin-50',
   erreur: 'rounded-[10px] bg-alerte-fond text-alerte-texte text-sm px-4 py-3',
@@ -36,13 +39,17 @@ export const Logo = ({ className = '' }) => (
   </span>
 );
 
+// Fond d'un aperçu couleur : la couleur si elle est connue (Lab renseigné),
+// sinon un fond neutre hachuré qui signale « pas de mesure ».
+export const fondCouleur = (hex) =>
+  hex
+    ? { backgroundColor: hex }
+    : { backgroundImage: 'repeating-linear-gradient(135deg, #EDE6D9 0 6px, #F7F3EC 6px 12px)' };
+
 // Petit carré de couleur + numéro, utilisé dans les en-têtes de tableaux
 export const PastilleNuance = ({ hex, numero }) => (
   <span className="inline-flex items-center gap-2">
-    <span
-      className="w-4 h-4 rounded-[5px] border border-black/5"
-      style={{ backgroundColor: hex || '#FFFFFF' }}
-    />
+    <span className="w-4 h-4 rounded-[5px] border border-black/5" style={fondCouleur(hex)} />
     {numero}
   </span>
 );
@@ -57,6 +64,47 @@ export const Message = ({ children, erreur = false }) => (
     {children}
   </div>
 );
+
+// Fenêtre d'alerte (pop-up) : un titre, un message et un bouton pour fermer.
+// Se ferme avec le bouton, la touche Échap ou un clic sur le fond.
+export const FenetreAlerte = ({ titre, children, onFermer }) => {
+  const t = useT();
+  const bouton = useRef(null);
+
+  useEffect(() => {
+    bouton.current?.focus();
+    const surTouche = (e) => {
+      if (e.key === 'Escape') onFermer();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [onFermer]);
+
+  return (
+    <div
+      className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-encre/40"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onFermer();
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="fenetre-alerte-titre"
+        aria-describedby="fenetre-alerte-message"
+        className="w-full max-w-md rounded-[20px] border border-lin-500 bg-lin-50 p-7 shadow-xl flex flex-col gap-5"
+      >
+        <h2 id="fenetre-alerte-titre" className={`m-0 ${cls.h3}`}>{titre}</h2>
+        <p id="fenetre-alerte-message" className="m-0 text-[15px] leading-relaxed text-encre-700">{children}</p>
+        <div className="flex justify-end">
+          <button ref={bouton} type="button" onClick={onFermer} className={cls.btnPrimaire}>
+            {t('commun.compris')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Icone = {
   Chevron: (p) => (
@@ -96,6 +144,11 @@ export const Icone = {
   Imprimante: (p) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" {...p}>
       <path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z" />
+    </svg>
+  ),
+  Corbeille: (p) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" {...p}>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
     </svg>
   ),
   Valider: (p) => (

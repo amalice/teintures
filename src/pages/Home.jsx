@@ -11,7 +11,7 @@ export default function Home() {
   const location = useLocation();
   const params = useParams();  // Utilise useParams pour lire recetteId
   const navigate = useNavigate();  // Ajoute useNavigate pour la navigation
-  const { projetId, projetNom } = useContext(ProjetContext);
+  const { projetId, projetNom, isAdminProjet, projets, selectionnerProjet } = useContext(ProjetContext);
   const [mode, setMode] = useState('accueil');
   const [recetteId, setRecetteId] = useState(null);
 
@@ -51,13 +51,18 @@ export default function Home() {
         <RecetteForm projetId={projetId} projetNom={projetNom} />
       )}
       {mode === 'search' && (
-        <RechercheCouleur projetId={projetId} projetNom={projetNom} />
+        <RechercheCouleur
+          projetId={projetId}
+          projets={projets}
+          onChangerProjet={selectionnerProjet}
+        />
       )}
       {mode === 'view' && recetteId && (
         <RecetteView
           projetId={projetId}
           projetNom={projetNom}
           recetteId={recetteId}
+          peutSupprimer={isAdminProjet}
           onEdit={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
         />
       )}

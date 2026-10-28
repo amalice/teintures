@@ -1,6 +1,49 @@
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from './tableNames';
 
+// Champs communs à toute la fiche (répétés sur chaque ligne-nuance de la table)
+export const CHAMPS_RECETTE = [
+  'numero_fiche', 'date', 'objet', 'matiere', 'observations', 'pre_mordancage', 'nom',
+  'ph_eau', 'montee_temperature',
+  'rapport_de_bain', 'nb_parts_totales',
+  ...[1, 2, 3].flatMap((i) => [
+    `colorant_${i}`, `colorant_${i}_fournisseur`, `colorant_${i}_lot`,
+    `colorant_${i}_qte_poudre`, `colorant_${i}_dilution`,
+  ]),
+  // Colonnes « mordant_* » : affichées « Sel de nuançage » dans l'interface
+  ...[1, 2, 3].flatMap((i) => [`mordant_${i}`, `mordant_${i}_dilution`]),
+];
+
+// Champs propres à chaque nuance
+export const CHAMPS_COULEUR = [
+  'couleur_numero',
+  'nb_part_colorant_1', 'nb_part_colorant_2', 'nb_part_colorant_3',
+  'profondeur_ton', 'poids_tissu', 'bleu_depart', 'info',
+  'pourcent_mordant_1', 'pourcent_mordant_2', 'pourcent_mordant_3',
+  'couleur_lab_l', 'couleur_lab_a', 'couleur_lab_b',
+  'couleur_lch_c', 'couleur_lch_h',
+];
+
+/** Ne garde de `ligne` que les champs listés. */
+export const extraire = (ligne, champs) =>
+  Object.fromEntries(champs.map((champ) => [champ, ligne?.[champ] ?? null]));
+
+/**
+ * Vrai si une autre fiche du projet porte déjà ce numéro.
+ * `recetteIdExclu` : la fiche en cours de modification (elle ne compte pas comme doublon).
+ */
+export const numeroFicheExiste = async (tableName, numero, recetteIdExclu = null) => {
+  let requete = supabase
+    .from(tableName)
+    .select('recette_id')
+    .eq('numero_fiche', numero)
+    .limit(1);
+  if (recetteIdExclu) requete = requete.neq('recette_id', recetteIdExclu);
+  const { data, error } = await requete;
+  if (error) throw error;
+  return data.length > 0;
+};
+
 /**
  * Cherche une recette par son numéro de fiche.
  * L'erreur éventuelle est renvoyée sous forme de clé de traduction (+ message technique) :
