@@ -84,7 +84,6 @@ const RechercheCouleur = ({ projetId, projets = [], onChangerProjet }) => {
 
     fetchCouleurs();
     return () => { annule = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleProjets]);
 
   const handleSearch = (e) => {
