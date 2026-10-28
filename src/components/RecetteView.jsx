@@ -1,26 +1,25 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
-import { formaterDate } from '../utils/recettes';
+import { formaterDate, CHAMPS_RECETTE, CHAMPS_COULEUR, extraire } from '../utils/recettes';
+import { labVersLch, labComplet, hexNuance } from '../utils/couleurs';
 import { useNavigate, Link } from 'react-router-dom';
-import { cls, Icone, PastilleNuance, Chargement, Message } from './ui';
+import { cls, Icone, PastilleNuance, Chargement, Message, fondCouleur } from './ui';
 import { useLangue, useNombre } from '../i18n';
 
-const RecetteView = ({ projetId, projetNom, recetteId, onEdit }) => {
+const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = false }) => {
   const tableName = getRecettesTableName(projetNom);
   const [recette, setRecette] = useState(null);
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [suppression, setSuppression] = useState(false);
+  const [erreurSuppression, setErreurSuppression] = useState('');
   const navigate = useNavigate();
   const { t, langue } = useLangue();
   const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
-    console.log('recetteId:', recetteId);
-console.log('projetNom:', projetNom);
-console.log('Table name:', getRecettesTableName(projetNom));
-
     const fetchRecette = async () => {
       try {
         const { data, error } = await supabase
@@ -32,51 +31,19 @@ console.log('Table name:', getRecettesTableName(projetNom));
         if (error) throw error;
 
         if (data && data.length > 0) {
-          const firstRow = data[0];
-          setRecette({
-            numero_fiche: firstRow.numero_fiche,
-            date: firstRow.date,
-            objet: firstRow.objet,
-            matiere: firstRow.matiere,
-            observations: firstRow.observations,
-            pre_mordancage: firstRow.pre_mordancage,
-            nom: firstRow.nom,
-            rapport_de_bain: firstRow.rapport_de_bain,
-            nb_parts_totales: firstRow.nb_parts_totales,
-            colorant_1: firstRow.colorant_1,
-            colorant_2: firstRow.colorant_2,
-            colorant_3: firstRow.colorant_3,
-            colorant_1_qte_poudre: firstRow.colorant_1_qte_poudre,
-            colorant_2_qte_poudre: firstRow.colorant_2_qte_poudre,
-            colorant_3_qte_poudre: firstRow.colorant_3_qte_poudre,
-            colorant_1_dilution: firstRow.colorant_1_dilution,
-            colorant_2_dilution: firstRow.colorant_2_dilution,
-            colorant_3_dilution: firstRow.colorant_3_dilution,
-            mordant_1: firstRow.mordant_1,
-            mordant_2: firstRow.mordant_2,
-            mordant_3: firstRow.mordant_3,
-            mordant_1_dilution: firstRow.mordant_1_dilution,
-            mordant_2_dilution: firstRow.mordant_2_dilution,
-            mordant_3_dilution: firstRow.mordant_3_dilution,
-          });
+          setRecette(extraire(data[0], CHAMPS_RECETTE));
 
-          setCouleurs(data.map(row => ({
-            couleur_numero: row.couleur_numero,
-            nb_part_colorant_1: row.nb_part_colorant_1,
-            nb_part_colorant_2: row.nb_part_colorant_2,
-            nb_part_colorant_3: row.nb_part_colorant_3,
-            profondeur_ton: row.profondeur_ton,
-            poids_tissu: row.poids_tissu,
-            pourcent_mordant_1: row.pourcent_mordant_1,
-            pourcent_mordant_2: row.pourcent_mordant_2,
-            pourcent_mordant_3: row.pourcent_mordant_3,
-            couleur_hex: row.couleur_hex,
-            couleur_lab_l: row.couleur_lab_l,
-            couleur_lab_a: row.couleur_lab_a,
-            couleur_lab_b: row.couleur_lab_b,
-            info: row.info,
-            bleu_depart: row.bleu_depart,
-          })));
+          setCouleurs(data.map((row) => {
+            const nuance = extraire(row, CHAMPS_COULEUR);
+            // Fiche enregistrée avant l'ajout du LCh : on le calcule depuis le Lab
+            if ((nuance.couleur_lch_c === null || nuance.couleur_lch_h === null)
+              && labComplet(nuance.couleur_lab_l, nuance.couleur_lab_a, nuance.couleur_lab_b)) {
+              const [, C, h] = labVersLch(nuance.couleur_lab_l, nuance.couleur_lab_a, nuance.couleur_lab_b);
+              nuance.couleur_lch_c = C;
+              nuance.couleur_lch_h = h;
+            }
+            return nuance;
+          }));
         } else {
           setError(t('fiche.introuvable'));
         }
@@ -144,7 +111,25 @@ console.log('Table name:', getRecettesTableName(projetNom));
   };
 
   const getUnite = (Index,mordantOuColorant) => {
-    return recette[`${mordantOuColorant}_${Index}_dilution`] === 1 ? "g" : "ml";
+    return Number(recette[`${mordantOuColorant}_${Index}_dilution`]) === 1 ? "g" : "ml";
+  };
+
+  // Suppression de la fiche (Administrateurs du projet uniquement ; vérifié aussi côté Supabase)
+  const supprimerFiche = async () => {
+    if (!window.confirm(t('fiche.confirmerSuppression', { n: recette.numero_fiche }))) return;
+    setSuppression(true);
+    setErreurSuppression('');
+    const { error } = await supabase.rpc('supprimer_fiche', {
+      p_projet_id: projetId,
+      p_recette_id: recetteId,
+    });
+    setSuppression(false);
+    if (error) {
+      console.error(error);
+      setErreurSuppression(t('fiche.erreurSuppression', { message: error.message }));
+      return;
+    }
+    navigate('/nuancier');
   };
 
   if (loading) return <Chargement />;
@@ -153,6 +138,15 @@ console.log('Table name:', getRecettesTableName(projetNom));
 
   const indexColorants = [1, 2, 3].filter((i) => recette[`colorant_${i}`]);
   const indexMordants = [1, 2, 3].filter((i) => recette[`mordant_${i}`]);
+  // La dilution de solution mère n'est pas « utilisée » quand elle vaut 1 (ou est vide) :
+  // on ne l'affiche que pour les colorants dilués, et la colonne disparaît si aucun ne l'est.
+  const dilutionUtilisee = (i) => {
+    const d = recette[`colorant_${i}_dilution`];
+    return d !== null && d !== undefined && d !== '' && Number(d) !== 1;
+  };
+  const afficherDilution = indexColorants.some(dilutionUtilisee);
+  const codeCouleur = (valeurs) =>
+    valeurs.every((v) => v !== null && v !== undefined && v !== '') ? valeurs.join(', ') : '—';
   const nombre = (v, decimales) =>
     v === null || v === undefined || v === '' ? '—' : aff(Number(v).toFixed(decimales));
 
@@ -204,7 +198,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
             colSpan={sousColonnes ? 2 : 1}
             className={`px-2 font-medium ${sousColonnes ? 'pt-3.5 pb-1' : 'py-4'}`}
           >
-            <PastilleNuance hex={c.couleur_hex} numero={c.couleur_numero} />
+            <PastilleNuance hex={hexNuance(c)} numero={c.couleur_numero} />
           </th>
         ))}
       </tr>
@@ -246,6 +240,11 @@ console.log('Table name:', getRecettesTableName(projetNom));
             <button type="button" onClick={() => window.print()} className={cls.btnSecondaire}>
               <Icone.Imprimante />{t('fiche.imprimer')}
             </button>
+            {peutSupprimer && (
+              <button type="button" onClick={supprimerFiche} disabled={suppression} className={cls.btnDanger}>
+                <Icone.Corbeille />{suppression ? t('fiche.suppressionEnCours') : t('fiche.supprimer')}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
@@ -255,6 +254,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
             </button>
           </div>
         </div>
+        {erreurSuppression && <p role="alert" className={`m-0 ${cls.erreur}`}>{erreurSuppression}</p>}
       </div>
 
       {/* ===== COULEURS OBTENUES ===== */}
@@ -263,15 +263,15 @@ console.log('Table name:', getRecettesTableName(projetNom));
           <div key={c.couleur_numero} className="flex flex-col gap-2.5">
             <div
               className="relative h-36 print:h-10 rounded-[14px] border border-black/5"
-              style={{ backgroundColor: c.couleur_hex || '#FFFFFF' }}
+              style={fondCouleur(hexNuance(c))}
             >
               <span className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-lin-50/90 flex items-center justify-center text-[13px] font-semibold">
                 {c.couleur_numero}
               </span>
             </div>
             <div className="flex flex-col gap-0.5 font-mono text-xs text-encre-600">
-              <span className="font-medium text-encre">{c.couleur_hex || '—'}</span>
-              <span>Lab {c.couleur_lab_l}, {c.couleur_lab_a}, {c.couleur_lab_b}</span>
+              <span className="font-medium text-encre">Lab {codeCouleur([c.couleur_lab_l, c.couleur_lab_a, c.couleur_lab_b])}</span>
+              <span>LCh {codeCouleur([c.couleur_lab_l, c.couleur_lch_c, c.couleur_lch_h])}</span>
             </div>
           </div>
         ))}
@@ -286,7 +286,13 @@ console.log('Table name:', getRecettesTableName(projetNom));
             <Info label={t('fiche.date')}>{formaterDate(recette.date, langue)}</Info>
             <Info label={t('fiche.objet')}>{recette.objet}</Info>
             <Info label={t('fiche.matiere')}>{recette.matiere}</Info>
-            <Info label={t('fiche.preMordancage')} large>{recette.pre_mordancage}</Info>
+            <Info label={t('fiche.phEau')}>
+              {recette.ph_eau !== null && recette.ph_eau !== undefined && recette.ph_eau !== '' ? aff(String(recette.ph_eau)) : ''}
+            </Info>
+            <Info label={t('fiche.preMordancage')}>{recette.pre_mordancage}</Info>
+            <Info label={t('fiche.monteeTemperature')} large>
+              {recette.montee_temperature && <span className="whitespace-pre-line">{recette.montee_temperature}</span>}
+            </Info>
             <Info label={t('fiche.observations')} large>{recette.observations}</Info>
           </dl>
         </div>
@@ -310,20 +316,35 @@ console.log('Table name:', getRecettesTableName(projetNom));
               <tr className="text-left text-encre-500">
                 <th className="py-2 font-medium text-[13px]">{t('fiche.colorant')}</th>
                 <th className="py-2 font-medium text-[13px] text-right">{t('fiche.poudre')}</th>
-                <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
+                {afficherDilution && (
+                  <th className="py-2 font-medium text-[13px] text-right">{t('fiche.dilution')}</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {indexColorants.length === 0 && (
-                <tr className="border-t border-lin-400"><td colSpan="3" className="py-2.5 text-encre-500">—</td></tr>
+                <tr className="border-t border-lin-400"><td colSpan={afficherDilution ? 3 : 2} className="py-2.5 text-encre-500">—</td></tr>
               )}
-              {indexColorants.map((i) => (
-                <tr key={i} className="border-t border-lin-400">
-                  <td className="py-2.5">{recette[`colorant_${i}`]}</td>
-                  <td className="py-2.5 text-right font-mono">{recette[`colorant_${i}_qte_poudre`] || '0'}</td>
-                  <td className="py-2.5 text-right font-mono">{recette[`colorant_${i}_dilution`] || '1'}</td>
-                </tr>
-              ))}
+              {indexColorants.map((i) => {
+                const provenance = [
+                  recette[`colorant_${i}_fournisseur`],
+                  recette[`colorant_${i}_lot`] && t('fiche.lotN', { lot: recette[`colorant_${i}_lot`] }),
+                ].filter(Boolean).join(' · ');
+                return (
+                  <tr key={i} className="border-t border-lin-400">
+                    <td className="py-2.5">
+                      {recette[`colorant_${i}`]}
+                      {provenance && <span className="block text-xs text-encre-500">{provenance}</span>}
+                    </td>
+                    <td className="py-2.5 text-right font-mono align-top">{recette[`colorant_${i}_qte_poudre`] || '0'}</td>
+                    {afficherDilution && (
+                      <td className="py-2.5 text-right font-mono align-top">
+                        {dilutionUtilisee(i) ? recette[`colorant_${i}_dilution`] : ''}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <table className="w-full text-sm">
@@ -403,7 +424,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
         </div>
       </section>
 
-      {/* ===== MORDANTS ===== */}
+      {/* ===== NUANÇAGE (colonnes mordant_* en base) ===== */}
       <section className="flex flex-col gap-4">
         <h2 className={`m-0 ${cls.h2}`}>{t('fiche.mordants')}</h2>
         <div className={cls.tableau}>
@@ -445,7 +466,7 @@ console.log('Table name:', getRecettesTableName(projetNom));
             <div key={c.couleur_numero} className={`${cls.carte} rounded-2xl flex items-center gap-3.5 px-5 py-4`}>
               <span
                 className="w-8 h-8 flex-none rounded-lg border border-black/5 flex items-center justify-center text-[13px] font-semibold"
-                style={{ backgroundColor: c.couleur_hex || '#FFFFFF' }}
+                style={fondCouleur(hexNuance(c))}
               >
                 {c.couleur_numero}
               </span>

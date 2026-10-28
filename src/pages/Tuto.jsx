@@ -47,8 +47,8 @@ const fr = {
               <Fort>Visiteur</Fort> : consultation des fiches, du nuancier et recherche par teinte.
             </li>
             <li>
-              <Fort>Administrateur</Fort> : en plus, enregistrement de nouvelles recettes, modification des fiches
-              existantes et création de projets.
+              <Fort>Administrateur</Fort> : en plus, enregistrement de nouvelles recettes, modification et
+              suppression des fiches existantes, et création de projets.
             </li>
           </Liste>
         </>
@@ -108,9 +108,11 @@ const fr = {
       titre: "Consulter une fiche",
       contenu: (
         <P>
-          La fiche présente les six nuances obtenues, les informations générales (nom de l’auteur, date, objet,
-          matière, pré-mordançage, observations), le bain (rapport de bain, parts totales, colorants et mordants), puis
-          les tableaux Nuances, Colorants, Mordants et le volume d’eau initial pour chaque nuance.
+          La fiche présente les six nuances obtenues (aperçu, codes Lab et LCh), les informations générales (nom de
+          l’auteur, date, objet, matière, pH de l’eau, pré-mordançage, montée en température, observations), le bain
+          (rapport de bain, parts totales, colorants avec fournisseur et lot, sels de nuançage), puis les tableaux
+          Nuances, Colorants, Nuançage et le volume d’eau initial pour chaque nuance. La dilution de solution mère
+          n’est affichée que pour les colorants dilués (dilution différente de 1).
         </P>
       ),
     },
@@ -124,9 +126,11 @@ const fr = {
             remplir ; les cases grisées se calculent automatiquement.
           </P>
           <P>
-            Le rapport de bain s’écrit sous la forme 1:n : saisissez seulement n (un nombre entier). Le code Lab se
-            calcule à partir du code HEX, que vous pouvez choisir avec le sélecteur de couleur ou taper directement ;
-            les cases L, a, b peuvent aussi être corrigées à la main (valeurs négatives et virgule acceptées).
+            Le rapport de bain s’écrit sous la forme 1:n : saisissez seulement n (un nombre entier). Pour la couleur,
+            saisissez soit le code Lab (L, a, b), soit le code LCh (L, C, h) : l’autre se calcule automatiquement,
+            avec 2 décimales dans les deux cas. La case L est commune aux deux codes. Virgule et valeurs négatives sont
+            acceptées. L’aperçu de la couleur s’affiche dès que le code est complet ; sans code, la nuance apparaît
+            hachurée.
           </P>
           <P>
             Cliquez <Bouton>Mettre à jour</Bouton> pour enregistrer et revenir à la fiche, ou <Bouton>Annuler</Bouton>{" "}
@@ -142,11 +146,22 @@ const fr = {
         <>
           <P>
             Cliquez <Bouton>Nouvelle recette</Bouton> dans le menu. La fiche vide s’affiche, organisée comme en mode
-            modification. Le numéro de fiche et la date sont obligatoires ; un numéro déjà utilisé est refusé. Cliquez{" "}
+            modification. Le numéro de fiche et la date sont obligatoires ; un numéro déjà utilisé dans le projet est
+            refusé à l’enregistrement (y compris en modification). Cliquez{" "}
             <Bouton>Enregistrer</Bouton> une fois la fiche remplie.
           </P>
           <P>Seules les nuances où au moins une case « Nombre de parts » est supérieure à 0 sont enregistrées.</P>
         </>
+      ),
+    },
+    {
+      id: "supprimer",
+      titre: "Supprimer une fiche",
+      contenu: (
+        <P>
+          Réservé aux administrateurs du projet : ouvrez la fiche puis cliquez <Bouton>Supprimer</Bouton> en haut de
+          page et confirmez. La fiche et toutes ses nuances sont supprimées définitivement.
+        </P>
       ),
     },
     {
@@ -165,9 +180,11 @@ const fr = {
       contenu: (
         <>
           <P>
-            Choisissez <Bouton>HEX</Bouton> ou <Bouton>Lab</Bouton>, saisissez la couleur cible (un aperçu s’affiche
-            pendant la saisie) puis cliquez <Bouton>Rechercher</Bouton>. Les 10 couleurs les plus proches du projet
-            s’affichent, la cible et la couleur trouvée côte à côte.
+            Choisissez <Bouton>Lab</Bouton> ou <Bouton>LCh</Bouton>, saisissez la couleur cible (un aperçu s’affiche
+            pendant la saisie) puis cliquez <Bouton>Rechercher</Bouton>. La recherche porte sur tous les projets
+            auxquels vous avez accès : les 10 couleurs les plus proches s’affichent, la cible et la couleur trouvée
+            côte à côte, avec le nom du projet. Cliquer sur une couleur d’un autre projet ouvre la fiche et bascule sur
+            ce projet.
           </P>
           <P>
             L’écart est mesuré par le ΔE2000 : plus il est petit, plus les couleurs se ressemblent. En dessous de 1, la
@@ -188,9 +205,9 @@ const fr = {
             <Formule nom="Quantité de colorant">
               poids du tissu × % colorant ÷ [C] poudre × dilution de la solution mère
             </Formule>
-            <Formule nom="Quantité de mordant">poids du tissu × % mordant ÷ 100 × dilution de la solution mère</Formule>
+            <Formule nom="Quantité de sel de nuançage">poids du tissu × % sel ÷ 100 × dilution de la solution mère</Formule>
             <Formule nom="Volume du bain">poids du tissu × n (rapport de bain 1:n)</Formule>
-            <Formule nom="Volume d’eau initial">volume du bain − somme des quantités de colorants et de mordants</Formule>
+            <Formule nom="Volume d’eau initial">volume du bain − somme des quantités de colorants et de sels de nuançage</Formule>
           </dl>
           <P className="text-sm text-encre-500">
             Les quantités sont en grammes lorsque la dilution vaut 1, en millilitres de solution mère sinon.
@@ -240,7 +257,8 @@ const en = {
               <Fort>Viewer</Fort>: view recipes and the swatch book, and search by shade.
             </li>
             <li>
-              <Fort>Administrator</Fort>: in addition, save new recipes, edit existing recipes and create projects.
+              <Fort>Administrator</Fort>: in addition, save new recipes, edit and delete existing recipes, and
+              create projects.
             </li>
           </Liste>
         </>
@@ -300,9 +318,11 @@ const en = {
       titre: "Viewing a recipe",
       contenu: (
         <P>
-          The recipe sheet shows the six shades obtained, the general details (author’s name, date, purpose, fibre,
-          pre-mordanting, notes), the dye bath (liquor ratio, total parts, dyes and mordants), then the Shades, Dyes and
-          Mordants tables and the initial water volume for each shade.
+          The recipe sheet shows the six shades obtained (preview, Lab and LCh codes), the general details (author’s
+          name, date, purpose, fibre, water pH, pre-mordanting, temperature ramp, notes), the dye bath (liquor ratio,
+          total parts, dyes with supplier and batch, shading salts), then the Shades, Dyes and Shading tables and the
+          initial water volume for each shade. The stock solution dilution is only shown for diluted dyes (dilution
+          other than 1).
         </P>
       ),
     },
@@ -316,9 +336,10 @@ const en = {
             in; grey cells are calculated automatically.
           </P>
           <P>
-            The liquor ratio is written as 1:n: enter only n (a whole number). The Lab code is calculated from the HEX
-            code, which you can pick with the colour picker or type in directly; the L, a, b cells can also be corrected
-            by hand (negative values and decimal commas are accepted).
+            The liquor ratio is written as 1:n: enter only n (a whole number). For the colour, enter either the Lab
+            code (L, a, b) or the LCh code (L, C, h): the other is calculated automatically, to 2 decimals in both
+            cases. The L cell is shared by both codes. Negative values and decimal commas are accepted. The colour
+            preview appears once the code is complete; without a code, the shade is shown hatched.
           </P>
           <P>
             Click <Bouton>Update</Bouton> to save and return to the recipe, or <Bouton>Cancel</Bouton> to leave without
@@ -334,11 +355,22 @@ const en = {
         <>
           <P>
             Click <Bouton>New recipe</Bouton> in the menu. A blank recipe sheet opens, laid out like the edit view. The
-            recipe number and date are required; a number that is already used is rejected. Click{" "}
+            recipe number and date are required; a number already used in the project is rejected when saving
+            (including when editing). Click{" "}
             <Bouton>Save</Bouton> once the sheet is filled in.
           </P>
           <P>Only shades with at least one “Number of parts” cell above 0 are saved.</P>
         </>
+      ),
+    },
+    {
+      id: "supprimer",
+      titre: "Deleting a recipe",
+      contenu: (
+        <P>
+          Project administrators only: open the recipe, click <Bouton>Delete</Bouton> at the top of the page and
+          confirm. The recipe and all its shades are permanently deleted.
+        </P>
       ),
     },
     {
@@ -357,9 +389,10 @@ const en = {
       contenu: (
         <>
           <P>
-            Choose <Bouton>HEX</Bouton> or <Bouton>Lab</Bouton>, enter the target colour (a preview appears as you
-            type) and click <Bouton>Search</Bouton>. The project’s 10 closest colours are listed, with the target and
-            the matching colour side by side.
+            Choose <Bouton>Lab</Bouton> or <Bouton>LCh</Bouton>, enter the target colour (a preview appears as you
+            type) and click <Bouton>Search</Bouton>. The search covers every project you have access to: the 10
+            closest colours are listed, with the target and the matching colour side by side and the project name.
+            Clicking a colour from another project opens the recipe and switches to that project.
           </P>
           <P>
             The difference is measured with ΔE2000: the smaller it is, the more alike the colours. Below 1 the
@@ -378,9 +411,9 @@ const en = {
             <Formule nom="Value of one part">depth of shade ÷ total parts</Formule>
             <Formule nom="Dye %">number of parts × value of one part</Formule>
             <Formule nom="Dye amount">fabric weight × dye % ÷ [C] powder × stock solution dilution</Formule>
-            <Formule nom="Mordant amount">fabric weight × mordant % ÷ 100 × stock solution dilution</Formule>
+            <Formule nom="Shading salt amount">fabric weight × salt % ÷ 100 × stock solution dilution</Formule>
             <Formule nom="Bath volume">fabric weight × n (liquor ratio 1:n)</Formule>
-            <Formule nom="Initial water volume">bath volume − sum of dye and mordant amounts</Formule>
+            <Formule nom="Initial water volume">bath volume − sum of dye and shading salt amounts</Formule>
           </dl>
           <P className="text-sm text-encre-500">
             Amounts are in grams when the dilution is 1, otherwise in millilitres of stock solution.

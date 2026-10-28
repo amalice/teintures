@@ -135,6 +135,15 @@ function App() {
     setProjetNom(nom);
   };
 
+  // Rôle de l'utilisateur sur le projet actif (les droits se gèrent projet par projet)
+  const roleProjet = projets.find((droit) => droit.projets?.id === projetId)?.role || null;
+  const isAdminProjet = roleProjet === 'Administrateur';
+
+  // Projets accessibles, sous une forme simple { id, nom, role } (utilisé par la recherche multi-projets)
+  const projetsAccessibles = projets
+    .filter((droit) => droit.projets)
+    .map((droit) => ({ id: droit.projets.id, nom: droit.projets.nom, role: droit.role }));
+
   const handleCreerProjet = () => {
     setShowCreerProjetModal(true);
   };
@@ -263,7 +272,18 @@ function App() {
         />
       )}
 
-      <ProjetContext.Provider value={{ projetId, projetNom, isAdmin, setProjetId, setProjetNom }}>
+      <ProjetContext.Provider
+        value={{
+          projetId,
+          projetNom,
+          isAdmin,
+          isAdminProjet,
+          projets: projetsAccessibles,
+          selectionnerProjet: handleSelectProjet,
+          setProjetId,
+          setProjetNom,
+        }}
+      >
         <Routes>
           <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
           <Route

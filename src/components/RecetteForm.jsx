@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import chroma from 'chroma-js';
 import { getRecettesTableName } from '../utils/tableNames';
+import { CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, numeroFicheExiste } from '../utils/recettes';
+import { labVersLch, lchVersLab, hexNuance } from '../utils/couleurs';
 import { useNavigate, Link } from 'react-router-dom';
-import { cls, Icone, PastilleNuance } from './ui';
+import { cls, Icone, PastilleNuance, fondCouleur } from './ui';
 import { useT, useNombre } from '../i18n';
 
 // ===== Petits composants de mise en page =====
 // Définis hors du composant principal pour que React ne recrée pas les champs
 // (et ne perde pas le focus) à chaque frappe.
 
-const ChampInfo = ({ name, label, value, onChange, type = 'text', required = false, mono = false }) => (
-  <div className="flex flex-col gap-1.5">
+const ChampInfo = ({ name, label, value, onChange, type = 'text', required = false, mono = false, large = false, ...reste }) => (
+  <div className={`flex flex-col gap-1.5 ${large ? 'col-span-2' : ''}`}>
     <label htmlFor={`f-${name}`} className={cls.labelPetit}>{label}{required && ' *'}</label>
     <input
       id={`f-${name}`}
@@ -21,6 +22,21 @@ const ChampInfo = ({ name, label, value, onChange, type = 'text', required = fal
       onChange={onChange}
       className={mono ? cls.inputMono : cls.input}
       required={required}
+      {...reste}
+    />
+  </div>
+);
+
+const ChampTexteLong = ({ name, label, value, onChange, rows = 3 }) => (
+  <div className="col-span-2 flex flex-col gap-1.5">
+    <label htmlFor={`f-${name}`} className={cls.labelPetit}>{label}</label>
+    <textarea
+      id={`f-${name}`}
+      name={name}
+      rows={rows}
+      value={value ?? ''}
+      onChange={onChange}
+      className={`${cls.input} h-auto py-2.5 leading-relaxed resize-y`}
     />
   </div>
 );
@@ -34,7 +50,7 @@ const EnTeteNuances = ({ couleurs, premiere, sousColonnes = false }) => {
       <th scope="col" className="text-left px-5 pt-4 pb-2 font-medium text-[13px] text-encre-500 w-48">{premiere}</th>
       {couleurs.map((c) => (
         <th key={c.couleur_numero} scope="col" className="px-2 pt-4 pb-2 font-medium">
-          <PastilleNuance hex={c.couleur_hex} numero={c.couleur_numero} />
+          <PastilleNuance hex={hexNuance(c)} numero={c.couleur_numero} />
           {sousColonnes && (
             <span className="grid grid-cols-2 gap-1 mt-1.5 text-xs font-normal text-encre-500">
               <span>{t('fiche.pourcent')}</span><span>{t('fiche.quantite')}</span>
@@ -66,24 +82,30 @@ const Section = ({ titre, note, children, minWidth = 'min-w-[1060px]' }) => (
   </section>
 );
 
-// Case L, a ou b : champ texte qui accepte une saisie en cours (« - », « -1 », « 12, »…)
-// et ne transmet la valeur que lorsqu'elle forme un nombre complet, borné entre min et max.
+// Case L, a, b, C ou h : champ texte qui accepte une saisie en cours (« - », « -1 », « 12, »…)
+// et ne transmet la valeur que lorsqu'elle forme un nombre complet, borné entre min et max
+// et arrondi à 2 décimales. Une case vidée transmet null.
 const NOMBRE_COMPLET = /^-?\d+(\.\d*)?$|^-?\.\d+$/;
 const SAISIE_POSSIBLE = /^-?\d*[.,]?\d*$/;
+const texteValeur = (v) => (v === null || v === undefined ? '' : String(v));
 
 const ChampLab = ({ value, onValeur, min, max, label }) => {
-  const [saisie, setSaisie] = useState(value === null || value === undefined ? '' : String(value));
+  const [saisie, setSaisie] = useState(texteValeur(value));
   const enCours = useRef(false);
 
-  // Mise à jour depuis l'extérieur (ex. Lab recalculé après un changement de HEX)
+  // Mise à jour depuis l'extérieur (ex. a et b recalculés après un changement de C ou h)
   useEffect(() => {
-    if (!enCours.current) setSaisie(value === null || value === undefined ? '' : String(value));
+    if (!enCours.current) setSaisie(texteValeur(value));
   }, [value]);
 
   const surSaisie = (e) => {
     const texte = e.target.value.replace(/\s/g, '');
     if (!SAISIE_POSSIBLE.test(texte)) return; // ignore lettres et caractères invalides
     setSaisie(texte);
+    if (texte === '') {
+      onValeur(null);
+      return;
+    }
     const normalise = texte.replace(',', '.');
     if (NOMBRE_COMPLET.test(normalise)) {
       const nombre = Math.min(max, Math.max(min, parseFloat(normalise)));
@@ -100,8 +122,8 @@ const ChampLab = ({ value, onValeur, min, max, label }) => {
       onChange={surSaisie}
       onBlur={() => {
         enCours.current = false;
-        // Saisie incomplète (« - », vide…) : on réaffiche la dernière valeur valide
-        setSaisie(value === null || value === undefined ? '' : String(value));
+        // Saisie incomplète (« - »…) : on réaffiche la dernière valeur valide
+        setSaisie(texteValeur(value));
       }}
       aria-label={label}
       className={`${cls.inputCellule} px-0.5 text-xs`}
@@ -122,44 +144,60 @@ const BoutonsAction = ({ onAnnuler, loading, recetteId }) => {
   );
 };
 
+// ===== Valeurs par défaut =====
+const RECETTE_VIDE = {
+  ...Object.fromEntries(CHAMPS_RECETTE.map((champ) => [champ, ''])),
+  date: new Date().toISOString().split('T')[0],
+  nb_parts_totales: 100,
+  colorant_1_qte_poudre: 100,
+  colorant_2_qte_poudre: 100,
+  colorant_3_qte_poudre: 100,
+  colorant_1_dilution: 1,
+  colorant_2_dilution: 1,
+  colorant_3_dilution: 1,
+  mordant_1_dilution: 1,
+  mordant_2_dilution: 1,
+  mordant_3_dilution: 1,
+};
+
+// Une nuance vierge : la couleur (Lab / LCh) n'est pas renseignée tant qu'elle n'a pas été mesurée
+const nuanceVide = (numero) => ({
+  couleur_numero: numero,
+  nb_part_colorant_1: 0,
+  nb_part_colorant_2: 0,
+  nb_part_colorant_3: 0,
+  profondeur_ton: 0,
+  poids_tissu: 0,
+  bleu_depart: '',
+  info: '',
+  pourcent_mordant_1: 0,
+  pourcent_mordant_2: 0,
+  pourcent_mordant_3: 0,
+  couleur_lab_l: null,
+  couleur_lab_a: null,
+  couleur_lab_b: null,
+  couleur_lch_c: null,
+  couleur_lch_h: null,
+});
+
+const NB_NUANCES = 6;
+
+const estNombre = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+
+// Champs numériques facultatifs : '' → null, virgule acceptée
+const nombreOuNull = (v) => {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+};
+
 const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const tableName = getRecettesTableName(projetNom);
 
-  const [recette, setRecette] = useState({
-    numero_fiche: '',
-    date: new Date().toISOString().split('T')[0],
-    objet: '',
-    matiere: '',
-    observations: '',
-    pre_mordancage: '',
-    nom: '',
-    rapport_de_bain: '',
-    nb_parts_totales: 100,
-    colorant_1: '',
-    colorant_2: '',
-    colorant_3: '',
-    colorant_1_qte_poudre: 100,
-    colorant_2_qte_poudre: 100,
-    colorant_3_qte_poudre: 100,
-    colorant_1_dilution: 1,
-    colorant_2_dilution: 1,
-    colorant_3_dilution: 1,
-    mordant_1: '',
-    mordant_2: '',
-    mordant_3: '',
-    mordant_1_dilution: 1,
-    mordant_2_dilution: 1,
-    mordant_3_dilution: 1,
-  });
-
-  const [couleurs, setCouleurs] = useState([
-    { couleur_numero: 1, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-    { couleur_numero: 2, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-    { couleur_numero: 3, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-    { couleur_numero: 4, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-    { couleur_numero: 5, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-    { couleur_numero: 6, nb_part_colorant_1: 0, nb_part_colorant_2: 0, nb_part_colorant_3: 0, profondeur_ton: 0, poids_tissu: 0, bleu_depart: '', info: '', pourcent_mordant_1: 0, pourcent_mordant_2: 0, pourcent_mordant_3: 0, couleur_hex: '#FFFFFF', couleur_lab_l: 100, couleur_lab_a: 0, couleur_lab_b: 0 },
-  ]);
+  const [recette, setRecette] = useState(RECETTE_VIDE);
+  const [couleurs, setCouleurs] = useState(() =>
+    Array.from({ length: NB_NUANCES }, (_, i) => nuanceVide(i + 1))
+  );
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -180,55 +218,20 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
           if (error) throw error;
 
           if (data && data.length > 0) {
-            const firstRow = data[0];
-            setRecette({
-              numero_fiche: firstRow.numero_fiche,
-              date: firstRow.date,
-              objet: firstRow.objet,
-              matiere: firstRow.matiere,
-              observations: firstRow.observations,
-              pre_mordancage: firstRow.pre_mordancage,
-              nom: firstRow.nom,
-              rapport_de_bain: firstRow.rapport_de_bain,
-              nb_parts_totales: firstRow.nb_parts_totales,
-              colorant_1: firstRow.colorant_1,
-              colorant_2: firstRow.colorant_2,
-              colorant_3: firstRow.colorant_3,
-              colorant_1_qte_poudre: firstRow.colorant_1_qte_poudre,
-              colorant_2_qte_poudre: firstRow.colorant_2_qte_poudre,
-              colorant_3_qte_poudre: firstRow.colorant_3_qte_poudre,
-              colorant_1_dilution: firstRow.colorant_1_dilution,
-              colorant_2_dilution: firstRow.colorant_2_dilution,
-              colorant_3_dilution: firstRow.colorant_3_dilution,
-              mordant_1: firstRow.mordant_1,
-              mordant_2: firstRow.mordant_2,
-              mordant_3: firstRow.mordant_3,
-              mordant_1_dilution: firstRow.mordant_1_dilution,
-              mordant_2_dilution: firstRow.mordant_2_dilution,
-              mordant_3_dilution: firstRow.mordant_3_dilution,
-            });
+            setRecette(extraire(data[0], CHAMPS_RECETTE));
 
-            const newCouleurs = [...couleurs];
+            const newCouleurs = Array.from({ length: NB_NUANCES }, (_, i) => nuanceVide(i + 1));
             data.forEach((row) => {
               const index = row.couleur_numero - 1;
-              if (index >= 0 && index < 6) {
-                newCouleurs[index] = {
-                  couleur_numero: row.couleur_numero,
-                  nb_part_colorant_1: row.nb_part_colorant_1,
-                  nb_part_colorant_2: row.nb_part_colorant_2,
-                  nb_part_colorant_3: row.nb_part_colorant_3,
-                  profondeur_ton: row.profondeur_ton,
-                  poids_tissu: row.poids_tissu,
-                  pourcent_mordant_1: row.pourcent_mordant_1,
-                  pourcent_mordant_2: row.pourcent_mordant_2,
-                  pourcent_mordant_3: row.pourcent_mordant_3,
-                  couleur_hex: row.couleur_hex,
-                  couleur_lab_l: row.couleur_lab_l,
-                  couleur_lab_a: row.couleur_lab_a,
-                  couleur_lab_b: row.couleur_lab_b,
-                  info: row.info,
-                  bleu_depart: row.bleu_depart,
-                };
+              if (index >= 0 && index < NB_NUANCES) {
+                const nuance = extraire(row, CHAMPS_COULEUR);
+                // Fiche enregistrée avant l'ajout du LCh : on le calcule depuis le Lab
+                if (!estNombre(nuance.couleur_lch_c) && estNombre(nuance.couleur_lab_a) && estNombre(nuance.couleur_lab_b)) {
+                  const [, C, h] = labVersLch(nuance.couleur_lab_l, nuance.couleur_lab_a, nuance.couleur_lab_b);
+                  nuance.couleur_lch_c = C;
+                  nuance.couleur_lch_h = h;
+                }
+                newCouleurs[index] = nuance;
               }
             });
             setCouleurs(newCouleurs);
@@ -242,37 +245,43 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     }
   }, [recetteId, projetNom]);
 
-  useEffect(() => {
-    const newCouleurs = couleurs.map((couleur) => {
-      if (couleur.couleur_hex && chroma.valid(couleur.couleur_hex)) {
-        const lab = chroma(couleur.couleur_hex).lab();
-        return {
-          ...couleur,
-          couleur_lab_l: Math.round(lab[0] * 100) / 100, // Arrondi à 2 décimales
-          couleur_lab_a: Math.round(lab[1] * 100) / 100,
-          couleur_lab_b: Math.round(lab[2] * 100) / 100,
-        };
-      }
-      return couleur;
-    });
-    setCouleurs(newCouleurs);
-  }, [couleurs.map(c => c.couleur_hex).join(',')]);
-
   const handleRecetteChange = (e) => {
     const { name, value } = e.target;
-    setRecette({ ...recette, [name]: value });
+    setRecette((prec) => ({ ...prec, [name]: value }));
   };
 
   const handleCouleurChange = (index, field, value) => {
-  const newCouleurs = [...couleurs];
-  // Arrondir à 2 décimales si le champ est L, a ou b
-  if (field.startsWith('couleur_lab_')) {
-    newCouleurs[index][field] = Math.round(value * 100) / 100;
-  } else {
-    newCouleurs[index][field] = value;
-  }
-  setCouleurs(newCouleurs);
-};
+    setCouleurs((prec) => prec.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
+  };
+
+  // Colorimétrie : L est commun au Lab et au LCh. La conversion a,b ⇄ C,h se fait
+  // dès que les deux valeurs du code modifié sont renseignées ; sinon l'autre code est vidé.
+  const handleCouleurimetrie = (index, field, value) => {
+    setCouleurs((prec) => prec.map((c, i) => {
+      if (i !== index) return c;
+      const n = { ...c, [field]: value };
+      if (field === 'couleur_lab_a' || field === 'couleur_lab_b') {
+        if (estNombre(n.couleur_lab_a) && estNombre(n.couleur_lab_b)) {
+          const [, C, h] = labVersLch(0, n.couleur_lab_a, n.couleur_lab_b);
+          n.couleur_lch_c = C;
+          n.couleur_lch_h = h;
+        } else {
+          n.couleur_lch_c = null;
+          n.couleur_lch_h = null;
+        }
+      } else if (field === 'couleur_lch_c' || field === 'couleur_lch_h') {
+        if (estNombre(n.couleur_lch_c) && estNombre(n.couleur_lch_h)) {
+          const [, a, b] = lchVersLab(0, n.couleur_lch_c, n.couleur_lch_h);
+          n.couleur_lab_a = a;
+          n.couleur_lab_b = b;
+        } else {
+          n.couleur_lab_a = null;
+          n.couleur_lab_b = null;
+        }
+      }
+      return n;
+    }));
+  };
 
   const getRapportDeBainValue = () => {
     if (!recette.rapport_de_bain) return 0;
@@ -297,10 +306,10 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     const nbParts = couleur[`nb_part_colorant_${colorantIndex}`] ?? 0;
     const profondeurTon = couleur.profondeur_ton ?? 0;
     const nbPartsTotales = recette.nb_parts_totales ?? 0;
-  
+
     if (nbPartsTotales === 0) return 0;
     return (nbParts * profondeurTon / nbPartsTotales).toFixed(1);
-  };  
+  };
 
   const calculateQuantiteColorant = (couleur, colorantIndex) => {
     const dilution = recette[`colorant_${colorantIndex}_dilution`];
@@ -313,7 +322,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     return quantite.toFixed(3).replace('.', ',');
   };
 
-  // Quantité de mordant = poids du tissu × % / 100 × dilution de la solution mère
+  // Quantité de sel de nuançage = poids du tissu × % / 100 × dilution de la solution mère
   // (même convention que les colorants : % exprimé par rapport au poids du tissu).
   const calculateQuantiteMordant = (couleur, mordantIndex) => {
     const pourcentage = parseFloat(couleur[`pourcent_mordant_${mordantIndex}`]) || 0;
@@ -327,8 +336,9 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     return (parseFloat(volumeDuBain.replace(',', '.')) - totalQuantites).toFixed(1).replace('.', ',');
   };
 
+  // La saisie renvoie du texte (« 1 ») et la base un nombre (1) : on compare des nombres
   const getUnite = (Index,mordantOuColorant) => {
-    return recette[`${mordantOuColorant}_${Index}_dilution`] === 1 ? "g" : "ml";
+    return Number(recette[`${mordantOuColorant}_${Index}_dilution`]) === 1 ? "g" : "ml";
   };
 
   const handleSubmit = async (e) => {
@@ -337,19 +347,21 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     setError('');
 
     try {
-      if (!recetteId) {
-        const { data: existing } = await supabase
-          .from(tableName)
-          .select('recette_id')
-          .eq('numero_fiche', recette.numero_fiche)
-          .maybeSingle();
+      const numero = String(recette.numero_fiche ?? '').trim();
+      if (!numero) throw new Error(t('form.numeroObligatoire'));
 
-        if (existing) {
-          throw new Error(t('form.numeroExiste'));
-        }
+      // Un numéro de fiche ne peut exister qu'une fois par projet
+      // (en modification, la fiche elle-même n'est pas comptée).
+      if (await numeroFicheExiste(tableName, numero, recetteId)) {
+        throw new Error(t('form.numeroExiste', { n: numero }));
       }
 
       const finalRecetteId = recetteId || crypto.randomUUID();
+      const donneesRecette = {
+        ...recette,
+        numero_fiche: numero,
+        ph_eau: nombreOuNull(recette.ph_eau),
+      };
 
       const recetteData = couleurs
       .filter(
@@ -359,49 +371,33 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
           couleur.nb_part_colorant_3 > 0
       )
       .map((couleur) => ({
-        ...recette,
+        ...donneesRecette,
+        ...extraire(couleur, CHAMPS_COULEUR),
         recette_id: finalRecetteId,
         id: crypto.randomUUID(),
-        couleur_numero: couleur.couleur_numero,
-        nb_part_colorant_1: couleur.nb_part_colorant_1,
-        nb_part_colorant_2: couleur.nb_part_colorant_2,
-        nb_part_colorant_3: couleur.nb_part_colorant_3,
-        profondeur_ton: couleur.profondeur_ton,
-        poids_tissu: couleur.poids_tissu,
-        pourcent_mordant_1: couleur.pourcent_mordant_1,
-        pourcent_mordant_2: couleur.pourcent_mordant_2,
-        pourcent_mordant_3: couleur.pourcent_mordant_3,
-        couleur_hex: couleur.couleur_hex,
-        couleur_lab_l: couleur.couleur_lab_l,
-        couleur_lab_a: couleur.couleur_lab_a,
-        couleur_lab_b: couleur.couleur_lab_b,
-        info: couleur.info,
-        bleu_depart: couleur.bleu_depart,
       }));
 
       if (recetteId) {
-        await supabase
+        const { error: erreurSuppression } = await supabase
           .from(tableName)
           .delete()
           .eq('recette_id', recetteId);
 
-        const { error } = await supabase
-          .from(tableName)
-          .insert(recetteData);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from(tableName)
-          .insert(recetteData);
-
-        if (error) throw error;
+        if (erreurSuppression) throw erreurSuppression;
       }
+
+      const { error } = await supabase
+        .from(tableName)
+        .insert(recetteData);
+
+      if (error) throw error;
 
       alert(recetteId ? t('form.alerteMaj') : t('form.alerteEnregistree'));
       if (onSuccess) onSuccess();
     } catch (err) {
-      setError(err.message);
+      // 23P01 : contrainte d'unicité du numéro de fiche côté Supabase (enregistrement simultané)
+      if (err?.code === '23P01') setError(t('form.numeroExiste', { n: String(recette.numero_fiche).trim() }));
+      else setError(err.message);
       console.error(err);
     } finally {
       setLoading(false);
@@ -469,18 +465,20 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             <ChampInfo name="nom" value={recette.nom} onChange={handleRecetteChange} label={t('fiche.nom')} />
             <ChampInfo name="objet" value={recette.objet} onChange={handleRecetteChange} label={t('fiche.objet')} />
             <ChampInfo name="matiere" value={recette.matiere} onChange={handleRecetteChange} label={t('fiche.matiere')} />
-            <ChampInfo name="pre_mordancage" value={recette.pre_mordancage} onChange={handleRecetteChange} label={t('fiche.preMordancage')} />
-            <div className="col-span-2 flex flex-col gap-1.5">
-              <label htmlFor="f-observations" className={cls.labelPetit}>{t('fiche.observations')}</label>
-              <textarea
-                id="f-observations"
-                name="observations"
-                rows="3"
-                value={recette.observations ?? ''}
-                onChange={handleRecetteChange}
-                className={`${cls.input} h-auto py-2.5 leading-relaxed resize-y`}
-              />
-            </div>
+            <ChampInfo
+              name="ph_eau"
+              value={recette.ph_eau}
+              onChange={handleRecetteChange}
+              label={t('fiche.phEau')}
+              type="number"
+              min="0"
+              max="14"
+              step="0.01"
+              mono
+            />
+            <ChampInfo name="pre_mordancage" value={recette.pre_mordancage} onChange={handleRecetteChange} label={t('fiche.preMordancage')} large />
+            <ChampTexteLong name="montee_temperature" value={recette.montee_temperature} onChange={handleRecetteChange} label={t('fiche.monteeTemperature')} rows="2" />
+            <ChampTexteLong name="observations" value={recette.observations} onChange={handleRecetteChange} label={t('fiche.observations')} />
           </div>
         </fieldset>
 
@@ -511,7 +509,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                 id="f-nb_parts_totales"
                 type="number"
                 name="nb_parts_totales"
-                value={recette.nb_parts_totales}
+                value={recette.nb_parts_totales ?? ''}
                 onChange={handleRecetteChange}
                 className={cls.inputMono}
                 min="1"
@@ -519,12 +517,18 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
             </div>
           </div>
 
+          {/* Colorants : nom, concentration et dilution, puis fournisseur et lot sur une seconde ligne */}
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-[2fr_1fr_1fr] gap-2 text-[13px] font-medium text-encre-500">
               <span>{t('fiche.colorant')}</span><span>{t('fiche.poudre')}</span><span>{t('fiche.dilution')}</span>
             </div>
             {['colorant_1', 'colorant_2', 'colorant_3'].map((colorant, i) => (
-              <div key={colorant} className="grid grid-cols-[2fr_1fr_1fr] gap-2">
+              <div
+                key={colorant}
+                role="group"
+                aria-label={t('form.colorantN', { n: i + 1 })}
+                className="grid grid-cols-[2fr_1fr_1fr] gap-2 pb-3 border-b border-lin-400 last:border-b-0 last:pb-0"
+              >
                 <input
                   type="text"
                   name={colorant}
@@ -551,6 +555,24 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                   aria-label={t('form.ariaDilColorant', { n: i + 1 })}
                   className={`${cls.inputMono} min-w-0 h-10`}
                   min="1"
+                />
+                <input
+                  type="text"
+                  name={`${colorant}_fournisseur`}
+                  value={recette[`${colorant}_fournisseur`] ?? ''}
+                  onChange={handleRecetteChange}
+                  aria-label={t('form.ariaFournisseur', { n: i + 1 })}
+                  placeholder={t('fiche.fournisseur')}
+                  className={`${cls.input} min-w-0 h-9 text-sm`}
+                />
+                <input
+                  type="text"
+                  name={`${colorant}_lot`}
+                  value={recette[`${colorant}_lot`] ?? ''}
+                  onChange={handleRecetteChange}
+                  aria-label={t('form.ariaLot', { n: i + 1 })}
+                  placeholder={t('fiche.lot')}
+                  className={`${cls.inputMono} col-span-2 min-w-0 h-9 text-sm`}
                 />
               </div>
             ))}
@@ -604,7 +626,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                     <input
                       key={k}
                       type="number"
-                      value={couleur[`nb_part_colorant_${k}`]}
+                      value={couleur[`nb_part_colorant_${k}`] ?? ''}
                       onChange={(e) => handleCouleurChange(index, `nb_part_colorant_${k}`, parseInt(e.target.value) || 0)}
                       aria-label={t('form.ariaParts', { colorant: nomsColorants[k - 1], n: index + 1 })}
                       className={cls.inputCellule}
@@ -629,7 +651,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
               <td key={`profondeur_${index}`} className="px-2 py-2.5">
                 <input
                   type="number"
-                  value={couleur.profondeur_ton}
+                  value={couleur.profondeur_ton ?? ''}
                   onChange={(e) => handleCouleurChange(index, 'profondeur_ton', parseFloat(e.target.value) || 0)}
                   aria-label={t('form.ariaChamp', { champ: t('fiche.profondeur'), n: index + 1 })}
                   className={cls.inputCellule}
@@ -645,7 +667,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
               <td key={`poids_${index}`} className="px-2 py-2.5">
                 <input
                   type="number"
-                  value={couleur.poids_tissu}
+                  value={couleur.poids_tissu ?? ''}
                   onChange={(e) => handleCouleurChange(index, 'poids_tissu', parseFloat(e.target.value) || 0)}
                   aria-label={t('form.ariaChamp', { champ: t('fiche.poids'), n: index + 1 })}
                   className={cls.inputCellule}
@@ -714,7 +736,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
         </tbody>
       </Section>
 
-      {/* ===== MORDANTS ===== */}
+      {/* ===== NUANÇAGE (colonnes mordant_* en base) ===== */}
       <Section titre={t('fiche.mordants')} note={t('form.noteMordants')} minWidth="min-w-[1000px]">
         <EnTeteNuances couleurs={couleurs} premiere={t('fiche.mordant')} sousColonnes />
         <tbody>
@@ -728,7 +750,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                     <div className="grid grid-cols-2 gap-1">
                       <input
                         type="number"
-                        value={pourcentage}
+                        value={pourcentage ?? ''}
                         onChange={(e) => handleCouleurChange(index, `pourcent_mordant_${i}`, parseFloat(e.target.value) || 0)}
                         aria-label={t('form.ariaPourcentMordant', { mordant: recette[`mordant_${i}`] || t('form.mordantMinuscule', { n: i }), n: index + 1 })}
                         className={cls.inputCellule}
@@ -765,35 +787,6 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
         <EnTeteNuances couleurs={couleurs} premiere="" />
         <tbody>
           <tr className="border-t border-lin-400">
-            <LigneTitre label={t('form.codeHex')} />
-            {couleurs.map((couleur, index) => (
-              <td key={`hex_${index}`} className="px-2 py-2.5">
-                <div className="flex items-center gap-1.5 p-1 rounded-[10px] border border-lin-600 bg-lin focus-within:ring-2 focus-within:ring-sauge">
-                  <input
-                    type="color"
-                    value={couleur.couleur_hex}
-                    onChange={(e) => handleCouleurChange(index, 'couleur_hex', e.target.value)}
-                    aria-label={t('form.ariaSelecteur', { n: index + 1 })}
-                    className="w-8 h-8 flex-none p-0 border-0 rounded-md bg-transparent cursor-pointer"
-                  />
-                  <input
-                    key={couleur.couleur_hex}
-                    type="text"
-                    defaultValue={couleur.couleur_hex}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      if (/^#?[0-9a-fA-F]{6}$/.test(v)) {
-                        handleCouleurChange(index, 'couleur_hex', (v.startsWith('#') ? v : `#${v}`).toUpperCase());
-                      }
-                    }}
-                    aria-label={t('form.ariaHex', { n: index + 1 })}
-                    className="flex-1 w-full min-w-0 h-8 px-1 bg-transparent border-0 font-mono text-[13px] text-encre focus:outline-none"
-                  />
-                </div>
-              </td>
-            ))}
-          </tr>
-          <tr className="border-t border-lin-400">
             <LigneTitre label={t('form.codeLab')} aide="L · a · b" />
             {couleurs.map((couleur, index) => (
               <td key={`lab_${index}`} className="px-2 py-2.5">
@@ -806,13 +799,45 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
                     <ChampLab
                       key={champ}
                       value={couleur[champ]}
-                      onValeur={(v) => handleCouleurChange(index, champ, v)}
+                      onValeur={(v) => handleCouleurimetrie(index, champ, v)}
                       min={min}
                       max={max}
-                      label={t('form.ariaChamp', { champ: nom, n: index + 1 })}
+                      label={t('form.ariaChamp', { champ: `Lab ${nom}`, n: index + 1 })}
                     />
                   ))}
                 </div>
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-lin-400">
+            <LigneTitre label={t('form.codeLch')} aide="L · C · h" />
+            {couleurs.map((couleur, index) => (
+              <td key={`lch_${index}`} className="px-2 py-2.5">
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    // L est le même en Lab et en LCh : les deux cases L sont liées
+                    ['couleur_lab_l', 'L', 0, 100],
+                    ['couleur_lch_c', 'C', 0, 182],
+                    ['couleur_lch_h', 'h', 0, 360],
+                  ].map(([champ, nom, min, max]) => (
+                    <ChampLab
+                      key={champ}
+                      value={couleur[champ]}
+                      onValeur={(v) => handleCouleurimetrie(index, champ, v)}
+                      min={min}
+                      max={max}
+                      label={t('form.ariaChamp', { champ: `LCh ${nom}`, n: index + 1 })}
+                    />
+                  ))}
+                </div>
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-lin-400">
+            <LigneTitre label={t('form.apercu')} aide={t('form.aideApercu')} />
+            {couleurs.map((couleur, index) => (
+              <td key={`apercu_${index}`} className="px-2 py-2.5">
+                <div className="h-10 rounded-[10px] border border-black/5" style={fondCouleur(hexNuance(couleur))} />
               </td>
             ))}
           </tr>

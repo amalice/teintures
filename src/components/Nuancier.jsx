@@ -3,7 +3,8 @@ import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
 import { rechercherRecetteParNumero } from '../utils/recettes';
 import { useNavigate, Link } from 'react-router-dom';
-import { cls, Chargement, Message } from './ui';
+import { labComplet, labVersHex, labVersLch } from '../utils/couleurs';
+import { cls, Chargement, Message, fondCouleur } from './ui';
 import { useT } from '../i18n';
 
 const TOUS = 'Tous';
@@ -47,21 +48,24 @@ const Nuancier = ({ projetId, projetNom }) => {
       try {
         const { data, error } = await supabase
           .from(tableName)
-          .select('numero_fiche, couleur_numero, couleur_hex, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3, recette_id');
+          .select('numero_fiche, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3, recette_id');
 
         if (error) {
           throw error;
         }
 
+        // Une entrée par nuance dont le Lab est renseigné (la couleur affichée en est calculée)
         const uniqueCouleurs = [];
         const seen = new Set();
         data.forEach((row) => {
-          if (row.couleur_hex && !seen.has(row.couleur_hex)) {
-            seen.add(row.couleur_hex);
+          const cle = `${row.recette_id}-${row.couleur_numero}`;
+          if (labComplet(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b) && !seen.has(cle)) {
+            seen.add(cle);
             uniqueCouleurs.push({
               fiche: row.numero_fiche,
               indexCouleur: row.couleur_numero,
-              hex: row.couleur_hex,
+              hex: labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
+              lch: labVersLch(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
               lab_L: row.couleur_lab_l,
               lab_a: row.couleur_lab_a,
               lab_b: row.couleur_lab_b,
@@ -199,7 +203,7 @@ const Nuancier = ({ projetId, projetNom }) => {
             >
               <span
                 className="block aspect-[4/3] rounded-[14px] border border-black/5 transition-transform group-hover:-translate-y-0.5"
-                style={{ backgroundColor: couleur.hex || '#FFFFFF' }}
+                style={fondCouleur(couleur.hex)}
               />
               <span className="flex flex-col gap-1 px-0.5">
                 <span className="flex justify-between items-baseline gap-2">
@@ -207,8 +211,9 @@ const Nuancier = ({ projetId, projetNom }) => {
                   <span className="text-[13px] text-encre-500">{t('commun.numeroNuance', { n: couleur.indexCouleur })}</span>
                 </span>
                 <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
-                <span className="font-mono text-xs text-encre-500">
-                  {couleur.hex} · Lab {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}
+                <span className="flex flex-col font-mono text-xs text-encre-500">
+                  <span>Lab {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}</span>
+                  <span>LCh {couleur.lch.join(', ')}</span>
                 </span>
               </span>
             </Link>

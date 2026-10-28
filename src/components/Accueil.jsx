@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { getRecettesTableName } from '../utils/tableNames';
 import { rechercherRecetteParNumero, formaterDate } from '../utils/recettes';
+import { labVersHex } from '../utils/couleurs';
 import { cls, Icone, Chargement } from './ui';
 import { useLangue } from '../i18n';
 
@@ -62,7 +63,7 @@ const Accueil = ({ projetId, projetNom }) => {
       setLoading(true);
       const { data, error } = await supabase
         .from(tableName)
-        .select('recette_id, numero_fiche, date, matiere, colorant_1, colorant_2, colorant_3, couleur_numero, couleur_hex')
+        .select('recette_id, numero_fiche, date, matiere, colorant_1, colorant_2, colorant_3, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b')
         .order('date', { ascending: false })
         .order('couleur_numero', { ascending: true });
 
@@ -82,7 +83,9 @@ const Accueil = ({ projetId, projetNom }) => {
               couleurs: [],
             });
           }
-          if (row.couleur_hex) parRecette.get(row.recette_id).couleurs.push(row.couleur_hex);
+          // Couleur affichée calculée depuis le Lab (nuances non mesurées ignorées)
+          const hex = labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b);
+          if (hex) parRecette.get(row.recette_id).couleurs.push(hex);
         });
         setFiches(Array.from(parRecette.values()).slice(0, NB_DERNIERES_FICHES));
       }
