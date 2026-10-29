@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from '../utils/tableNames';
-import { rechercherRecetteParNumero, formaterDate } from '../utils/recettes';
+import { rechercherRecetteParNumero, formaterDate, TABLE_RECETTES } from '../utils/recettes';
 import { labVersHex } from '../utils/couleurs';
 import { cls, Icone, Chargement } from './ui';
 import { useLangue } from '../i18n';
@@ -53,17 +52,16 @@ const Accueil = ({ projetId, projetNom }) => {
   // Dernières fiches du projet
   useEffect(() => {
     const fetchFiches = async () => {
-      if (!projetId || !projetNom) {
+      if (!projetId) {
         setFiches([]);
         return;
       }
-      const tableName = getRecettesTableName(projetNom);
-      if (!tableName) return;
 
       setLoading(true);
       const { data, error } = await supabase
-        .from(tableName)
+        .from(TABLE_RECETTES)
         .select('recette_id, numero_fiche, date, matiere, colorant_1, colorant_2, colorant_3, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b')
+        .eq('projet_id', projetId)
         .order('date', { ascending: false })
         .order('couleur_numero', { ascending: true });
 
@@ -98,7 +96,7 @@ const Accueil = ({ projetId, projetNom }) => {
   const ouvrirFiche = async (e) => {
     e.preventDefault();
     setErreurNumero('');
-    const { recetteId, erreur } = await rechercherRecetteParNumero(projetNom, numero.trim());
+    const { recetteId, erreur } = await rechercherRecetteParNumero(projetId, numero.trim());
     if (recetteId) navigate(`/recette/${recetteId}`);
     else if (erreur) setErreurNumero(t(erreur.cle, { message: erreur.message }));
   };

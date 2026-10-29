@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from '../utils/tableNames';
+import { TABLE_RECETTES } from '../utils/recettes';
 import { Link } from 'react-router-dom';
 import { labComplet, labVersHex, labVersLch, lchVersLab, deltaE2000 } from '../utils/couleurs';
 import { cls, Chargement, Message, fondCouleur } from './ui';
@@ -47,38 +47,34 @@ const RechercheCouleur = ({ projetId, projets = [], onChangerProjet }) => {
 
     const fetchCouleurs = async () => {
       setLoading(true);
-      const reponses = await Promise.all(
-        projets.map(async (projet) => {
-          const tableName = getRecettesTableName(projet.nom);
-          if (!tableName) return { projet, data: [], error: true };
-          const { data, error } = await supabase
-            .from(tableName)
-            .select('recette_id, numero_fiche, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3');
-          if (error) console.error(`Recherche : projet « ${projet.nom} » ignoré :`, error);
-          return { projet, data: data || [], error: Boolean(error) };
-        })
-      );
+      // Une seule requête pour tous les projets accessibles (RLS : uniquement ceux de l'utilisateur)
+      const nomsProjets = new Map(projets.map((p) => [p.id, p.nom]));
+      const { data, error } = projets.length
+        ? await supabase
+            .from(TABLE_RECETTES)
+            .select('projet_id, recette_id, numero_fiche, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3')
+            .in('projet_id', projets.map((p) => p.id))
+        : { data: [], error: null };
       if (annule) return;
+      if (error) console.error('Recherche : erreur de chargement des fiches :', error);
 
       const toutes = [];
-      reponses.forEach(({ projet, data }) => {
-        data.forEach((row) => {
-          // Seules les nuances dont le Lab est renseigné sont comparables
-          if (!labComplet(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b)) return;
-          toutes.push({
-            projetId: projet.id,
-            projetNom: projet.nom,
-            recette_id: row.recette_id,
-            fiche: row.numero_fiche,
-            indexCouleur: row.couleur_numero,
-            hex: labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
-            lab: [row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b].map(Number),
-            colorants: [row.colorant_1, row.colorant_2, row.colorant_3].filter(Boolean).join(', '),
-          });
+      (data || []).forEach((row) => {
+        // Seules les nuances dont le Lab est renseigné sont comparables
+        if (!labComplet(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b)) return;
+        toutes.push({
+          projetId: row.projet_id,
+          projetNom: nomsProjets.get(row.projet_id) || '',
+          recette_id: row.recette_id,
+          fiche: row.numero_fiche,
+          indexCouleur: row.couleur_numero,
+          hex: labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
+          lab: [row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b].map(Number),
+          colorants: [row.colorant_1, row.colorant_2, row.colorant_3].filter(Boolean).join(', '),
         });
       });
       setCouleurs(toutes);
-      setProjetsEnErreur(reponses.filter((r) => r.error).map((r) => r.projet.nom));
+      setProjetsEnErreur(error ? projets.map((p) => p.nom) : []);
       setLoading(false);
     };
 

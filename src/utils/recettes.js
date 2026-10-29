@@ -1,5 +1,8 @@
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from './tableNames';
+
+// Toutes les fiches de tous les projets sont dans une seule table, filtrée par projet_id.
+// Les règles RLS de Supabase garantissent qu'un utilisateur ne lit que ses projets.
+export const TABLE_RECETTES = 'recettes';
 
 // Champs communs à toute la fiche (répétés sur chaque ligne-nuance de la table)
 export const CHAMPS_RECETTE = [
@@ -32,10 +35,11 @@ export const extraire = (ligne, champs) =>
  * Vrai si une autre fiche du projet porte déjà ce numéro.
  * `recetteIdExclu` : la fiche en cours de modification (elle ne compte pas comme doublon).
  */
-export const numeroFicheExiste = async (tableName, numero, recetteIdExclu = null) => {
+export const numeroFicheExiste = async (projetId, numero, recetteIdExclu = null) => {
   let requete = supabase
-    .from(tableName)
+    .from(TABLE_RECETTES)
     .select('recette_id')
+    .eq('projet_id', projetId)
     .eq('numero_fiche', numero)
     .limit(1);
   if (recetteIdExclu) requete = requete.neq('recette_id', recetteIdExclu);
@@ -50,14 +54,14 @@ export const numeroFicheExiste = async (tableName, numero, recetteIdExclu = null
  * l'appelant l'affiche avec t(erreur.cle, { message: erreur.message }).
  * @returns {Promise<{recetteId: string|null, erreur: {cle: string, message?: string}|null}>}
  */
-export const rechercherRecetteParNumero = async (projetNom, numero) => {
-  if (!numero || !projetNom) return { recetteId: null, erreur: null };
+export const rechercherRecetteParNumero = async (projetId, numero) => {
+  if (!numero || !projetId) return { recetteId: null, erreur: null };
 
   try {
-    const tableName = getRecettesTableName(projetNom);
     const { data, error } = await supabase
-      .from(tableName)
+      .from(TABLE_RECETTES)
       .select('recette_id')
+      .eq('projet_id', projetId)
       .eq('numero_fiche', numero)
       .limit(1);
 
