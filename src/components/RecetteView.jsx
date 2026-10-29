@@ -1,14 +1,12 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from '../utils/tableNames';
-import { formaterDate, CHAMPS_RECETTE, CHAMPS_COULEUR, extraire } from '../utils/recettes';
+import { formaterDate, CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, TABLE_RECETTES } from '../utils/recettes';
 import { labVersLch, labComplet, hexNuance } from '../utils/couleurs';
 import { useNavigate, Link } from 'react-router-dom';
 import { cls, Icone, PastilleNuance, Chargement, Message, fondCouleur } from './ui';
 import { useLangue, useNombre } from '../i18n';
 
 const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = false }) => {
-  const tableName = getRecettesTableName(projetNom);
   const [recette, setRecette] = useState(null);
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,10 +19,13 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = f
 
   useEffect(() => {
     const fetchRecette = async () => {
+      setLoading(true);
+      setError('');
       try {
         const { data, error } = await supabase
-          .from(tableName)
+          .from(TABLE_RECETTES)
           .select('*')
+          .eq('projet_id', projetId)
           .eq('recette_id', recetteId)
           .order('couleur_numero', { ascending: true });
 
@@ -54,8 +55,12 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = f
       }
     };
 
-    if (recetteId) fetchRecette();
-  }, [recetteId, projetNom]);
+    if (recetteId && projetId) fetchRecette();
+    else if (!projetId) {
+      setError(t('commun.selectionnezProjet'));
+      setLoading(false);
+    }
+  }, [recetteId, projetId]);
 
   const getRapportDeBainValue = () => {
     if (!recette?.rapport_de_bain) return 0;

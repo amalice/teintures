@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from '../utils/tableNames';
-import { rechercherRecetteParNumero } from '../utils/recettes';
+import { rechercherRecetteParNumero, TABLE_RECETTES } from '../utils/recettes';
 import { useNavigate, Link } from 'react-router-dom';
 import { labComplet, labVersHex, labVersLch } from '../utils/couleurs';
 import { cls, Chargement, Message, fondCouleur } from './ui';
@@ -32,23 +31,17 @@ const Nuancier = ({ projetId, projetNom }) => {
       setLoading(true);
       setError(null);
 
-      if (!projetId || !projetNom) {
+      if (!projetId) {
         setError({ cle: 'commun.projetNonSelectionne' });
-        setLoading(false);
-        return;
-      }
-
-      const tableName = getRecettesTableName(projetNom);
-      if (!tableName) {
-        setError({ cle: 'commun.erreurTable' });
         setLoading(false);
         return;
       }
 
       try {
         const { data, error } = await supabase
-          .from(tableName)
-          .select('numero_fiche, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3, recette_id');
+          .from(TABLE_RECETTES)
+          .select('numero_fiche, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b, colorant_1, colorant_2, colorant_3, recette_id')
+          .eq('projet_id', projetId);
 
         if (error) {
           throw error;
@@ -113,7 +106,7 @@ const Nuancier = ({ projetId, projetNom }) => {
   const handleSearchByNumeroFiche = async (e) => {
     e.preventDefault();
     setErreurRecherche('');
-    const { recetteId, erreur } = await rechercherRecetteParNumero(projetNom, numeroFicheRecherche.trim());
+    const { recetteId, erreur } = await rechercherRecetteParNumero(projetId, numeroFicheRecherche.trim());
     if (recetteId) navigate(`/recette/${recetteId}`);  // Navigue vers l'URL de la recette
     else if (erreur) setErreurRecherche(t(erreur.cle, { message: erreur.message }));
   };

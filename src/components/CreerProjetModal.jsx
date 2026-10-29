@@ -24,48 +24,12 @@ export default function CreerProjetModal({ onClose, onProjetCreated }) {
     setError(null);
 
     try {
-      // 1. Récupérer l'utilisateur courant
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        throw userError;
-      }
-
-      // 2. Créer le projet
-      const { data: projet, error: projetError } = await supabase
-        .from('projets')
-        .insert({
-          nom,
-          date_creation: new Date().toISOString(),
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (projetError) {
-        throw projetError;
-      }
-
-      // 3. Liste des utilisateurs à ajouter comme Administrateurs
-      const adminUsers = [
-        user.id, // Utilisateur courant
-        '80ed0f34-e8a7-428a-ae6c-9233e6eb7a62',
-        '1be747ff-3a84-4cba-92d5-2a7b04f97104'
-      ];
-
-      // 4. Ajouter les droits "Administrateur" pour chaque utilisateur
-      for (const userId of adminUsers) {
-        const { error: droitError } = await supabase
-          .from('droits_projet')
-          .insert({
-            utilisateur_id: userId,
-            projet_id: projet.id,
-            role: 'Administrateur',
-          });
-
-        if (droitError) {
-          console.error(`Erreur lors de l'ajout des droits pour ${userId}:`, droitError);
-        }
-      }
+      // Création côté Supabase (fonction creer_projet) : le projet et le droit
+      // « Administrateur » de la personne connectée sont créés ensemble.
+      // Personne d'autre n'obtient d'accès : les membres s'ajoutent ensuite
+      // depuis la page Administration.
+      const { error: projetError } = await supabase.rpc('creer_projet', { p_nom: nom.trim() });
+      if (projetError) throw projetError;
 
       alert(t('modalProjet.succes'));
       onProjetCreated();

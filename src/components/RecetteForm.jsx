@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { getRecettesTableName } from '../utils/tableNames';
-import { CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, numeroFicheExiste } from '../utils/recettes';
+import { CHAMPS_RECETTE, CHAMPS_COULEUR, extraire, numeroFicheExiste, TABLE_RECETTES } from '../utils/recettes';
 import { labVersLch, lchVersLab, hexNuance } from '../utils/couleurs';
 import { useNavigate, Link } from 'react-router-dom';
 import { cls, Icone, PastilleNuance, fondCouleur, FenetreAlerte } from './ui';
@@ -192,7 +191,6 @@ const nombreOuNull = (v) => {
 };
 
 const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
-  const tableName = getRecettesTableName(projetNom);
 
   const [recette, setRecette] = useState(RECETTE_VIDE);
   const [couleurs, setCouleurs] = useState(() =>
@@ -217,12 +215,13 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
   const aff = useNombre(); // virgule ou point décimal selon la langue
 
   useEffect(() => {
-    if (recetteId) {
+    if (recetteId && projetId) {
       const fetchRecette = async () => {
         try {
           const { data, error } = await supabase
-            .from(tableName)
+            .from(TABLE_RECETTES)
             .select('*')
+            .eq('projet_id', projetId)
             .eq('recette_id', recetteId)
             .order('couleur_numero', { ascending: true });
 
@@ -254,7 +253,7 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       };
       fetchRecette();
     }
-  }, [recetteId, projetNom]);
+  }, [recetteId, projetId]);
 
   const handleRecetteChange = (e) => {
     const { name, value } = e.target;
@@ -358,12 +357,13 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
     setError('');
 
     try {
+      if (!projetId) throw new Error(t('commun.selectionnezProjet'));
       const numero = String(recette.numero_fiche ?? '').trim();
       if (!numero) throw new Error(t('form.numeroObligatoire'));
 
       // Un numéro de fiche ne peut exister qu'une fois par projet
       // (en modification, la fiche elle-même n'est pas comptée).
-      if (await numeroFicheExiste(tableName, numero, recetteId)) {
+      if (await numeroFicheExiste(projetId, numero, recetteId)) {
         setNumeroEnDouble(numero);
         return;
       }
@@ -385,22 +385,16 @@ const RecetteForm = ({ projetId, projetNom, recetteId = null, onSuccess }) => {
       .map((couleur) => ({
         ...donneesRecette,
         ...extraire(couleur, CHAMPS_COULEUR),
-        recette_id: finalRecetteId,
         id: crypto.randomUUID(),
       }));
 
-      if (recetteId) {
-        const { error: erreurSuppression } = await supabase
-          .from(tableName)
-          .delete()
-          .eq('recette_id', recetteId);
-
-        if (erreurSuppression) throw erreurSuppression;
-      }
-
-      const { error } = await supabase
-        .from(tableName)
-        .insert(recetteData);
+      // Enregistrement côté Supabase (fonction enregistrer_fiche) : vérifie le rôle
+      // (Administrateur ou Teinturier) et remplace les nuances en une seule transaction.
+      const { error } = await supabase.rpc('enregistrer_fiche', {
+        p_projet_id: projetId,
+        p_recette_id: finalRecetteId,
+        p_lignes: recetteData,
+      });
 
       if (error) throw error;
 

@@ -248,6 +248,15 @@ function App() {
               {isCompteMenuOpen && (
                 <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-lin-500 bg-lin-50 shadow-lg z-20 p-1.5">
                   <div className="px-3 py-2 text-sm text-encre-500 truncate">{session.user?.email}</div>
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsCompteMenuOpen(false)}
+                      className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-encre no-underline hover:bg-lin-300"
+                    >
+                      {t('admin.lien')}
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
