@@ -35,7 +35,7 @@ export const Logo = ({ className = '' }) => (
       <circle cx="11" cy="14" r="9" fill="#C9A77A" />
       <circle cx="17" cy="14" r="9" fill="#6E8456" fillOpacity="0.85" />
     </svg>
-    <span className="font-serif text-[22px] font-medium text-encre">Teintures</span>
+    <span className="font-serif text-[22px] font-medium text-encre">Tinctilab</span>
   </span>
 );
 

@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { rechercherRecetteParNumero, formaterDate, TABLE_RECETTES } from '../utils/recettes';
+import { rechercherRecetteParNumero, formaterDate, TABLE_RECETTES, chargerToutesLesLignes } from '../utils/recettes';
 import { labVersHex } from '../utils/couleurs';
 import { cls, Icone, Chargement } from './ui';
 import { useLangue } from '../i18n';
-
-const NB_DERNIERES_FICHES = 4;
 
 const raccourcis = [
   {
@@ -15,6 +13,7 @@ const raccourcis = [
     texte: 'accueil.nouvelleTexte',
     Icon: Icone.Plus,
     fond: 'bg-sauge-pale text-sauge',
+    edition: true, // masqué pour les Visiteurs
   },
   {
     to: '/recherche-teinte',
@@ -32,7 +31,7 @@ const raccourcis = [
   },
 ];
 
-const Accueil = ({ projetId, projetNom }) => {
+const Accueil = ({ projetId, projetNom, peutEditer = false }) => {
   const navigate = useNavigate();
   const { t, langue } = useLangue();
   const [prenom, setPrenom] = useState('');
@@ -49,7 +48,7 @@ const Accueil = ({ projetId, projetNom }) => {
     });
   }, []);
 
-  // Dernières fiches du projet
+  // Toutes les fiches du projet, de la plus récente à la plus ancienne
   useEffect(() => {
     const fetchFiches = async () => {
       if (!projetId) {
@@ -58,12 +57,15 @@ const Accueil = ({ projetId, projetNom }) => {
       }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from(TABLE_RECETTES)
-        .select('recette_id, numero_fiche, date, matiere, colorant_1, colorant_2, colorant_3, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b')
-        .eq('projet_id', projetId)
-        .order('date', { ascending: false })
-        .order('couleur_numero', { ascending: true });
+      const { data, error } = await chargerToutesLesLignes(() =>
+        supabase
+          .from(TABLE_RECETTES)
+          .select('recette_id, numero_fiche, date, matiere, colorant_1, colorant_2, colorant_3, couleur_numero, couleur_lab_l, couleur_lab_a, couleur_lab_b')
+          .eq('projet_id', projetId)
+          .order('date', { ascending: false })
+          .order('recette_id', { ascending: true })
+          .order('couleur_numero', { ascending: true })
+      );
 
       if (error) {
         console.error('Erreur lors de la récupération des fiches :', error);
@@ -85,7 +87,12 @@ const Accueil = ({ projetId, projetNom }) => {
           const hex = labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b);
           if (hex) parRecette.get(row.recette_id).couleurs.push(hex);
         });
-        setFiches(Array.from(parRecette.values()).slice(0, NB_DERNIERES_FICHES));
+        // Plus récente d'abord ; à date égale, numéro de fiche le plus grand d'abord
+        const toutes = Array.from(parRecette.values()).sort((a, b) =>
+          String(b.date || '').localeCompare(String(a.date || '')) ||
+          String(b.numero_fiche).localeCompare(String(a.numero_fiche), 'fr', { numeric: true })
+        );
+        setFiches(toutes);
       }
       setLoading(false);
     };
@@ -136,7 +143,7 @@ const Accueil = ({ projetId, projetNom }) => {
       </section>
 
       <section aria-label={t('accueil.raccourcis')} className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
-        {raccourcis.map(({ to, titre, texte, Icon, fond }) => (
+        {raccourcis.filter((r) => !r.edition || peutEditer).map(({ to, titre, texte, Icon, fond }) => (
           <Link
             key={to}
             to={to}
@@ -156,7 +163,12 @@ const Accueil = ({ projetId, projetNom }) => {
       {projetId && (
         <section className="flex flex-col gap-5">
           <div className="flex flex-wrap justify-between items-baseline gap-4">
-            <h2 className={`m-0 ${cls.h2}`}>{t('accueil.dernieres')}</h2>
+            <h2 className={`m-0 ${cls.h2}`}>
+              {t('accueil.toutesFiches')}
+              {!loading && fiches.length > 0 && (
+                <span className="ml-3 text-base font-sans text-encre-500">{t('accueil.nbFiches', { n: fiches.length })}</span>
+              )}
+            </h2>
             <Link to="/nuancier" className="text-[15px] font-medium text-sauge hover:text-sauge-fonce">
               {t('accueil.toutNuancier')}
             </Link>

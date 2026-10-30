@@ -4,6 +4,8 @@ import RecetteView from '../components/RecetteView';
 import Nuancier from '../components/Nuancier';
 import RechercheCouleur from '../components/RechercheCouleur';
 import Accueil from '../components/Accueil';
+import { Message } from '../components/ui';
+import { useT } from '../i18n';
 import { ProjetContext } from '../App';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 
@@ -11,7 +13,8 @@ export default function Home() {
   const location = useLocation();
   const params = useParams();  // Utilise useParams pour lire recetteId
   const navigate = useNavigate();  // Ajoute useNavigate pour la navigation
-  const { projetId, projetNom, isAdminProjet, projets, selectionnerProjet } = useContext(ProjetContext);
+  const { projetId, projetNom, peutEditer, projets, selectionnerProjet } = useContext(ProjetContext);
+  const t = useT();
   const [mode, setMode] = useState('accueil');
   const [recetteId, setRecetteId] = useState(null);
 
@@ -39,15 +42,20 @@ export default function Home() {
     }
   }, [location.pathname, params.recetteId]);
 
+  // Création / modification réservées aux Administrateurs et Teinturiers du projet
+  // (accès direct par l'URL : on affiche un message au lieu du formulaire)
+  const editionInterdite = (mode === 'create' || mode === 'edit') && projetId && !peutEditer;
+
   return (
     <main>
+      {editionInterdite && <Message>{t('commun.droitsInsuffisants')}</Message>}
       {mode === 'accueil' && (
-        <Accueil projetId={projetId} projetNom={projetNom} />
+        <Accueil projetId={projetId} projetNom={projetNom} peutEditer={peutEditer} />
       )}
       {mode === 'list' && (
         <Nuancier projetId={projetId} projetNom={projetNom} />
       )}
-      {mode === 'create' && (
+      {mode === 'create' && !editionInterdite && (
         <RecetteForm projetId={projetId} projetNom={projetNom} />
       )}
       {mode === 'search' && (
@@ -62,11 +70,12 @@ export default function Home() {
           projetId={projetId}
           projetNom={projetNom}
           recetteId={recetteId}
-          peutSupprimer={isAdminProjet}
+          peutModifier={peutEditer}
+          peutSupprimer={peutEditer}
           onEdit={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
         />
       )}
-      {mode === 'edit' && recetteId && (
+      {mode === 'edit' && recetteId && !editionInterdite && (
         <RecetteForm
           projetId={projetId}
           projetNom={projetNom}

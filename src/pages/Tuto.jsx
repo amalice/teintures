@@ -19,6 +19,38 @@ const P = ({ children, className = "" }) => <p className={`m-0 ${className}`}>{c
 const Liste = ({ children }) => <ul className="m-0 pl-5 list-disc flex flex-col gap-1.5">{children}</ul>;
 const Fort = ({ children }) => <strong className="font-medium text-encre">{children}</strong>;
 
+// Tableau des droits par rôle. lignes : [libellé, Administrateur, Teinturier, Visiteur] (true / false)
+const TableauRoles = ({ roles, lignes, oui, non }) => (
+  <div className={cls.tableau}>
+    <table className="min-w-full text-sm">
+      <thead>
+        <tr className="text-left text-encre-600">
+          <th scope="col" className="py-3 px-4 font-medium" />
+          {roles.map((role) => (
+            <th key={role} scope="col" className="py-3 px-4 font-medium text-center whitespace-nowrap">{role}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {lignes.map(([action, ...droits]) => (
+          <tr key={action} className="border-t border-lin-400">
+            <th scope="row" className="py-2.5 px-4 text-left font-normal text-encre-700">{action}</th>
+            {droits.map((autorise, i) => (
+              <td key={i} className="py-2.5 px-4 text-center">
+                {autorise ? (
+                  <span className="text-sauge font-semibold" aria-label={oui}>✓</span>
+                ) : (
+                  <span className="text-encre-500" aria-label={non}>—</span>
+                )}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
 // ===================== FRANÇAIS =====================
 const fr = {
   titre: "Tuto",
@@ -30,9 +62,12 @@ const fr = {
       titre: "Accès",
       contenu: (
         <>
-          <P>Les accès sont actuellement gérés hors de la plateforme par la propriétaire.</P>
+          <P>
+            Les comptes sont créés par la propriétaire de la plateforme. Les membres de chaque projet et leur rôle
+            sont ensuite gérés par les administrateurs du projet, depuis le menu du compte (
+            <Bouton>Gérer les membres</Bouton>).
+          </P>
           <P>Le mot de passe ne peut pas être modifié directement par les utilisateurs.</P>
-          <P>L’accès et les droits pour chaque projet doivent être fournis par la propriétaire.</P>
         </>
       ),
     },
@@ -41,15 +76,35 @@ const fr = {
       titre: "Niveaux d’accès",
       contenu: (
         <>
-          <P>Pour chaque projet, les utilisateurs disposent d’un des niveaux d’accès suivants :</P>
+          <P>
+            Pour chaque projet, chaque utilisateur a l’un des trois rôles suivants. Une même personne peut avoir des
+            rôles différents selon les projets.
+          </P>
+          <TableauRoles
+            roles={["Administrateur", "Teinturier", "Visiteur"]}
+            oui="Autorisé"
+            non="Non autorisé"
+            lignes={[
+              ["Voir le projet, lire les fiches, le nuancier, la recherche par teinte", true, true, true],
+              ["Imprimer une fiche", true, true, true],
+              ["Créer une fiche (Nouvelle recette)", true, true, false],
+              ["Modifier une fiche", true, true, false],
+              ["Supprimer une fiche", true, true, false],
+              ["Voir les membres du projet", true, false, false],
+              ["Ajouter, inviter ou retirer un membre, changer son rôle", true, false, false],
+              ["Créer un nouveau projet", true, false, false],
+            ]}
+          />
           <Liste>
+            <li>Les boutons auxquels votre rôle ne donne pas accès ne sont pas affichés.</li>
             <li>
-              <Fort>Visiteur</Fort> : consultation des fiches, du nuancier et recherche par teinte.
+              Sans rôle sur un projet, on ne voit ni le projet, ni ses fiches, ni ses membres.
             </li>
             <li>
-              <Fort>Administrateur</Fort> : en plus, enregistrement de nouvelles recettes, modification et
-              suppression des fiches existantes, et création de projets.
+              Le créateur d’un projet en devient automatiquement <Fort>Administrateur</Fort>. Un projet garde
+              toujours au moins un administrateur.
             </li>
+            <li>La suppression d’un projet est faite par la propriétaire de la plateforme.</li>
           </Liste>
         </>
       ),
@@ -64,8 +119,9 @@ const fr = {
             Une pastille verte indique le projet actif. Toutes les pages affichent ensuite les données de ce projet.
           </P>
           <P>
-            Les administrateurs trouvent <Bouton>Créer un nouveau projet</Bouton> en bas de ce même menu. Pour vous
-            déconnecter, cliquez sur le rond à vos initiales, tout à droite.
+            Les administrateurs trouvent <Bouton>Créer un nouveau projet</Bouton> en bas de ce même menu. Le rond à
+            vos initiales, tout à droite, ouvre le menu du compte : <Bouton>Gérer les membres</Bouton> (administrateurs)
+            et <Bouton>Déconnexion</Bouton>.
           </P>
           <P>
             Le bouton <Bouton>FR</Bouton> / <Bouton>EN</Bouton> du bandeau change la langue du site ; votre choix est
@@ -80,7 +136,7 @@ const fr = {
       contenu: (
         <P>
           L’accueil permet d’ouvrir directement une fiche en tapant son numéro, d’accéder aux pages principales, et
-          liste les dernières fiches du projet (les plus récentes en premier). Cliquez sur une fiche pour l’ouvrir.
+          liste toutes les fiches du projet, de la plus récente à la plus ancienne. Cliquez sur une fiche pour l’ouvrir.
         </P>
       ),
     },
@@ -89,7 +145,11 @@ const fr = {
       titre: "Nuancier",
       contenu: (
         <>
-          <P>Le nuancier affiche toutes les couleurs enregistrées dans le projet.</P>
+          <P>
+            Le nuancier affiche toutes les couleurs enregistrées dans le projet. Les nuances dont les codes Lab et LCh
+            n’ont pas encore été saisis apparaissent sur un fond hachuré, avec la mention « Codes Lab et LCh à
+            saisir » ; en tri <Bouton>Par couleur</Bouton>, elles sont placées à la fin.
+          </P>
           <Liste>
             <li>
               Filtrez par colorant avec les boutons sous le titre (<Bouton>Tous</Bouton>, <Bouton>Garance</Bouton>…).
@@ -159,8 +219,9 @@ const fr = {
       titre: "Supprimer une fiche",
       contenu: (
         <P>
-          Réservé aux administrateurs du projet : ouvrez la fiche puis cliquez <Bouton>Supprimer</Bouton> en haut de
-          page et confirmez. La fiche et toutes ses nuances sont supprimées définitivement.
+          Réservé aux administrateurs et teinturiers du projet : ouvrez la fiche puis cliquez{" "}
+          <Bouton>Supprimer</Bouton> en haut de page et confirmez. La fiche et toutes ses nuances sont supprimées
+          définitivement.
         </P>
       ),
     },
@@ -222,7 +283,7 @@ const fr = {
       contenu: (
         <Liste>
           <li>Amélioration de la page d’impression.</li>
-          <li>Ajout d’une page Administrateur pour gérer les accès depuis la plateforme.</li>
+          <li>Choix et réinitialisation du mot de passe par les utilisateurs.</li>
         </Liste>
       ),
     },
@@ -240,9 +301,11 @@ const en = {
       titre: "Access",
       contenu: (
         <>
-          <P>Access is currently managed outside the platform by the owner.</P>
+          <P>
+            Accounts are created by the platform owner. Each project’s members and their roles are then managed by the
+            project’s administrators, from the account menu (<Bouton>Manage members</Bouton>).
+          </P>
           <P>Users cannot change their password themselves.</P>
-          <P>Access and permissions for each project must be granted by the owner.</P>
         </>
       ),
     },
@@ -251,15 +314,33 @@ const en = {
       titre: "Access levels",
       contenu: (
         <>
-          <P>For each project, users have one of the following access levels:</P>
+          <P>
+            In each project, every user has one of the three roles below. The same person can have different roles in
+            different projects.
+          </P>
+          <TableauRoles
+            roles={["Administrator", "Dyer", "Viewer"]}
+            oui="Allowed"
+            non="Not allowed"
+            lignes={[
+              ["See the project, view recipes, the swatch book and search by shade", true, true, true],
+              ["Print a recipe", true, true, true],
+              ["Create a recipe (New recipe)", true, true, false],
+              ["Edit a recipe", true, true, false],
+              ["Delete a recipe", true, true, false],
+              ["See the project’s members", true, false, false],
+              ["Add, invite or remove a member, change their role", true, false, false],
+              ["Create a new project", true, false, false],
+            ]}
+          />
           <Liste>
+            <li>Buttons your role does not give access to are hidden.</li>
+            <li>Without a role in a project, you cannot see the project, its recipes or its members.</li>
             <li>
-              <Fort>Viewer</Fort>: view recipes and the swatch book, and search by shade.
+              Whoever creates a project automatically becomes its <Fort>Administrator</Fort>. A project always keeps
+              at least one administrator.
             </li>
-            <li>
-              <Fort>Administrator</Fort>: in addition, save new recipes, edit and delete existing recipes, and
-              create projects.
-            </li>
+            <li>Projects are deleted by the platform owner.</li>
           </Liste>
         </>
       ),
@@ -274,8 +355,9 @@ const en = {
             green dot shows the active project. Every page then shows that project’s data.
           </P>
           <P>
-            Administrators will find <Bouton>Create a new project</Bouton> at the bottom of the same menu. To sign out,
-            click the circle with your initials on the far right.
+            Administrators will find <Bouton>Create a new project</Bouton> at the bottom of the same menu. The circle
+            with your initials, on the far right, opens the account menu: <Bouton>Manage members</Bouton>
+            (administrators) and <Bouton>Sign out</Bouton>.
           </P>
           <P>
             The <Bouton>FR</Bouton> / <Bouton>EN</Bouton> switch in the header changes the site language; your choice
@@ -290,7 +372,7 @@ const en = {
       contenu: (
         <P>
           From the home page you can open a recipe directly by typing its number, reach the main pages, and see the
-          project’s latest recipes (most recent first). Click a recipe to open it.
+          project’s recipes, newest first. Click a recipe to open it.
         </P>
       ),
     },
@@ -299,7 +381,11 @@ const en = {
       titre: "Swatch book",
       contenu: (
         <>
-          <P>The swatch book shows every colour saved in the project.</P>
+          <P>
+            The swatch book shows every colour saved in the project. Shades whose Lab and LCh codes have not been
+            entered yet appear on a hatched background, marked “Lab and LCh codes missing”; when sorting{" "}
+            <Bouton>By colour</Bouton>, they are listed last.
+          </P>
           <Liste>
             <li>
               Filter by dye with the buttons below the title (<Bouton>All</Bouton> or a dye name).
@@ -368,8 +454,8 @@ const en = {
       titre: "Deleting a recipe",
       contenu: (
         <P>
-          Project administrators only: open the recipe, click <Bouton>Delete</Bouton> at the top of the page and
-          confirm. The recipe and all its shades are permanently deleted.
+          Project administrators and dyers only: open the recipe, click <Bouton>Delete</Bouton> at the top of the
+          page and confirm. The recipe and all its shades are permanently deleted.
         </P>
       ),
     },
@@ -428,7 +514,7 @@ const en = {
       contenu: (
         <Liste>
           <li>Better print layout.</li>
-          <li>An Administrator page to manage access from within the platform.</li>
+          <li>Letting users choose and reset their password.</li>
         </Liste>
       ),
     },

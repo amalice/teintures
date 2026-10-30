@@ -17,7 +17,7 @@ const liensNav = [
   { to: '/', cle: 'nav.accueil', end: true },
   { to: '/nuancier', cle: 'nav.nuancier' },
   { to: '/recherche-teinte', cle: 'nav.recherche' },
-  { to: '/nouvelle-recette', cle: 'nav.nouvelle' },
+  { to: '/nouvelle-recette', cle: 'nav.nouvelle', edition: true }, // masqué pour les Visiteurs
   { to: '/tuto', cle: 'nav.tuto' },
 ];
 
@@ -138,6 +138,9 @@ function App() {
   // Rôle de l'utilisateur sur le projet actif (les droits se gèrent projet par projet)
   const roleProjet = projets.find((droit) => droit.projets?.id === projetId)?.role || null;
   const isAdminProjet = roleProjet === 'Administrateur';
+  // Créer, modifier et supprimer des fiches : Administrateurs et Teinturiers
+  // (vérifié aussi côté Supabase par enregistrer_fiche et supprimer_fiche)
+  const peutEditer = roleProjet === 'Administrateur' || roleProjet === 'Teinturier';
 
   // Projets accessibles, sous une forme simple { id, nom, role } (utilisé par la recherche multi-projets)
   const projetsAccessibles = projets
@@ -164,7 +167,7 @@ function App() {
             </Link>
 
             <nav aria-label={t('nav.principale')} className="flex flex-wrap gap-1 flex-1">
-              {liensNav.map((lien) => (
+              {liensNav.filter((lien) => !lien.edition || peutEditer).map((lien) => (
                 <NavLink key={lien.to} to={lien.to} end={lien.end} className={classeLien}>
                   {t(lien.cle)}
                 </NavLink>
@@ -287,6 +290,8 @@ function App() {
           projetNom,
           isAdmin,
           isAdminProjet,
+          roleProjet,
+          peutEditer,
           projets: projetsAccessibles,
           selectionnerProjet: handleSelectProjet,
           setProjetId,

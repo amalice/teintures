@@ -1,7 +1,7 @@
 // Textes de l'interface — français (langue par défaut)
 const fr = {
   app: {
-    titreDocument: 'Outil de gestion des recettes de teintures',
+    titreDocument: 'Tinctilab · Recettes de teinture',
   },
   langue: {
     nom: 'Français',
@@ -28,6 +28,7 @@ const fr = {
   commun: {
     chargement: 'Chargement…',
     selectionnezProjet: 'Sélectionnez un projet dans le menu en haut à droite.',
+    droitsInsuffisants: 'Votre rôle sur ce projet (Visiteur) permet de consulter les fiches, pas de les créer ni de les modifier.',
     annuler: 'Annuler',
     ouvrir: 'Ouvrir',
     compris: 'Compris',
@@ -69,7 +70,8 @@ const fr = {
     rechercheTexte: 'Trouver les recettes les plus proches d’un Lab ou d’un LCh, dans tous vos projets.',
     nuancierTitre: 'Nuancier',
     nuancierTexte: 'Parcourir toutes les couleurs obtenues dans le projet.',
-    dernieres: 'Dernières fiches',
+    toutesFiches: 'Toutes les fiches',
+    nbFiches: ({ n }) => `${n} fiche${n > 1 ? 's' : ''}, de la plus récente à la plus ancienne`,
     toutNuancier: 'Tout le nuancier',
     chargementFiches: 'Chargement des fiches…',
     aucuneFiche: 'Aucune fiche pour ce projet.',
@@ -84,6 +86,8 @@ const fr = {
     parFiche: 'Par fiche',
     parCouleur: 'Par couleur',
     aucuneCouleur: 'Aucune couleur trouvée pour ce projet.',
+    aMesurer: ({ n }) => `${n} à mesurer`,
+    sansMesure: 'Codes Lab et LCh à saisir',
   },
   recherche: {
     titre: 'Recherche par teinte',
