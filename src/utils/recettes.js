@@ -27,6 +27,22 @@ export const CHAMPS_COULEUR = [
   'couleur_lch_c', 'couleur_lch_h',
 ];
 
+/**
+ * Charge toutes les lignes d'une requête, par paquets : Supabase ne renvoie
+ * au plus que 1000 lignes par appel (une fiche = jusqu'à 6 lignes).
+ * `construireRequete` doit renvoyer une requête triée de façon stable.
+ * @returns {Promise<{data: Array|null, error: object|null}>}
+ */
+export const chargerToutesLesLignes = async (construireRequete, taille = 1000) => {
+  const lignes = [];
+  for (let debut = 0; ; debut += taille) {
+    const { data, error } = await construireRequete().range(debut, debut + taille - 1);
+    if (error) return { data: null, error };
+    lignes.push(...data);
+    if (data.length < taille) return { data: lignes, error: null };
+  }
+};
+
 /** Ne garde de `ligne` que les champs listés. */
 export const extraire = (ligne, champs) =>
   Object.fromEntries(champs.map((champ) => [champ, ligne?.[champ] ?? null]));

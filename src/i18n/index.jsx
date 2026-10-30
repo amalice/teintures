@@ -5,11 +5,12 @@ import en from './en';
 // Langues disponibles. Le français est la langue par défaut.
 export const LANGUES = { fr, en };
 export const LANGUE_PAR_DEFAUT = 'fr';
-const CLE_STOCKAGE = 'teintures.langue';
+const CLE_STOCKAGE = 'tinctilab.langue';
+const ANCIENNE_CLE_STOCKAGE = 'teintures.langue'; // avant le changement de nom
 
 const lireLangueMemorisee = () => {
   try {
-    const l = window.localStorage.getItem(CLE_STOCKAGE);
+    const l = window.localStorage.getItem(CLE_STOCKAGE) || window.localStorage.getItem(ANCIENNE_CLE_STOCKAGE);
     return l && LANGUES[l] ? l : LANGUE_PAR_DEFAUT;
   } catch {
     return LANGUE_PAR_DEFAUT;

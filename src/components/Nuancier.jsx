@@ -47,18 +47,21 @@ const Nuancier = ({ projetId, projetNom }) => {
           throw error;
         }
 
-        // Une entrée par nuance dont le Lab est renseigné (la couleur affichée en est calculée)
+        // Une entrée par nuance. Si le Lab est renseigné, la couleur affichée en est calculée ;
+        // sinon la nuance apparaît sur fond hachuré (comme sur la fiche), en attendant sa mesure.
         const uniqueCouleurs = [];
         const seen = new Set();
         data.forEach((row) => {
           const cle = `${row.recette_id}-${row.couleur_numero}`;
-          if (labComplet(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b) && !seen.has(cle)) {
+          if (!seen.has(cle)) {
             seen.add(cle);
+            const mesuree = labComplet(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b);
             uniqueCouleurs.push({
               fiche: row.numero_fiche,
               indexCouleur: row.couleur_numero,
-              hex: labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
-              lch: labVersLch(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b),
+              mesuree,
+              hex: mesuree ? labVersHex(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b) : null,
+              lch: mesuree ? labVersLch(row.couleur_lab_l, row.couleur_lab_a, row.couleur_lab_b) : null,
               lab_L: row.couleur_lab_l,
               lab_a: row.couleur_lab_a,
               lab_b: row.couleur_lab_b,
@@ -93,7 +96,13 @@ const Nuancier = ({ projetId, projetNom }) => {
     const filtrees = filtre === TOUS ? couleurs : couleurs.filter((c) => c.listeColorants.includes(filtre));
     const triees = [...filtrees];
     if (tri === 'couleur') {
-      triees.sort((a, b) => teinte(a) - teinte(b) || (Number(b.lab_L) || 0) - (Number(a.lab_L) || 0));
+      // Les nuances non mesurées n'ont pas de teinte : elles passent en fin de liste
+      triees.sort((a, b) =>
+        (b.mesuree - a.mesuree) ||
+        (a.mesuree
+          ? teinte(a) - teinte(b) || (Number(b.lab_L) || 0) - (Number(a.lab_L) || 0)
+          : String(a.fiche).localeCompare(String(b.fiche), 'fr', { numeric: true }) || (a.indexCouleur || 0) - (b.indexCouleur || 0))
+      );
     } else {
       triees.sort((a, b) =>
         String(a.fiche).localeCompare(String(b.fiche), 'fr', { numeric: true }) ||
@@ -102,6 +111,8 @@ const Nuancier = ({ projetId, projetNom }) => {
     }
     return triees;
   }, [couleurs, filtre, tri]);
+
+  const nbAMesurer = couleursAffichees.filter((c) => !c.mesuree).length;
 
   const handleSearchByNumeroFiche = async (e) => {
     e.preventDefault();
@@ -126,7 +137,8 @@ const Nuancier = ({ projetId, projetNom }) => {
         <div className="flex flex-col gap-2.5">
           <h1 className={`m-0 ${cls.h1}`}>{t('nuancier.titre')}</h1>
           <p className="m-0 text-base text-encre-500">
-            {t('nuancier.compte', { n: couleursAffichees.length })} · {projetNom}
+            {t('nuancier.compte', { n: couleursAffichees.length })}
+            {nbAMesurer > 0 && <> ({t('nuancier.aMesurer', { n: nbAMesurer })})</>} · {projetNom}
           </p>
         </div>
 
@@ -204,10 +216,14 @@ const Nuancier = ({ projetId, projetNom }) => {
                   <span className="text-[13px] text-encre-500">{t('commun.numeroNuance', { n: couleur.indexCouleur })}</span>
                 </span>
                 <span className="text-sm text-encre-600">{couleur.colorants || '—'}</span>
-                <span className="flex flex-col font-mono text-xs text-encre-500">
-                  <span>Lab {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}</span>
-                  <span>LCh {couleur.lch.join(', ')}</span>
-                </span>
+                {couleur.mesuree ? (
+                  <span className="flex flex-col font-mono text-xs text-encre-500">
+                    <span>Lab {couleur.lab_L}, {couleur.lab_a}, {couleur.lab_b}</span>
+                    <span>LCh {couleur.lch.join(', ')}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs italic text-encre-500">{t('nuancier.sansMesure')}</span>
+                )}
               </span>
             </Link>
           ))}

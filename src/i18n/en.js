@@ -1,7 +1,7 @@
 // Interface texts — English
 const en = {
   app: {
-    titreDocument: 'Natural dye recipe manager',
+    titreDocument: 'Tinctilab · Dye recipes',
   },
   langue: {
     nom: 'English',
@@ -28,6 +28,7 @@ const en = {
   commun: {
     chargement: 'Loading…',
     selectionnezProjet: 'Select a project from the menu in the top right corner.',
+    droitsInsuffisants: 'Your role in this project (Viewer) lets you view recipes, not create or edit them.',
     annuler: 'Cancel',
     ouvrir: 'Open',
     compris: 'OK',
@@ -69,7 +70,8 @@ const en = {
     rechercheTexte: 'Find the recipes closest to a Lab or LCh colour, across all your projects.',
     nuancierTitre: 'Swatch book',
     nuancierTexte: 'Browse every colour obtained in the project.',
-    dernieres: 'Latest recipes',
+    toutesFiches: 'All recipes',
+    nbFiches: ({ n }) => `${n} recipe${n > 1 ? 's' : ''}, newest first`,
     toutNuancier: 'Whole swatch book',
     chargementFiches: 'Loading recipes…',
     aucuneFiche: 'No recipes in this project yet.',
@@ -84,6 +86,8 @@ const en = {
     parFiche: 'By recipe',
     parCouleur: 'By colour',
     aucuneCouleur: 'No colours found for this project.',
+    aMesurer: ({ n }) => `${n} to measure`,
+    sansMesure: 'Lab and LCh codes missing',
   },
   recherche: {
     titre: 'Search by shade',

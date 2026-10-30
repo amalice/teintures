@@ -6,7 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { cls, Icone, PastilleNuance, Chargement, Message, fondCouleur } from './ui';
 import { useLangue, useNombre } from '../i18n';
 
-const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = false }) => {
+const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutModifier = false, peutSupprimer = false }) => {
   const [recette, setRecette] = useState(null);
   const [couleurs, setCouleurs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +119,7 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = f
     return Number(recette[`${mordantOuColorant}_${Index}_dilution`]) === 1 ? "g" : "ml";
   };
 
-  // Suppression de la fiche (Administrateurs du projet uniquement ; vérifié aussi côté Supabase)
+  // Suppression de la fiche (Administrateurs et Teinturiers du projet ; vérifié aussi côté Supabase)
   const supprimerFiche = async () => {
     if (!window.confirm(t('fiche.confirmerSuppression', { n: recette.numero_fiche }))) return;
     setSuppression(true);
@@ -250,13 +250,15 @@ const RecetteView = ({ projetId, projetNom, recetteId, onEdit, peutSupprimer = f
                 <Icone.Corbeille />{suppression ? t('fiche.suppressionEnCours') : t('fiche.supprimer')}
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
-              className={cls.btnPrimaire}
-            >
-              <Icone.Crayon />{t('fiche.modifier')}
-            </button>
+            {peutModifier && (
+              <button
+                type="button"
+                onClick={() => navigate(`/recette/${recetteId}/edit`)}  // Navigue vers l'URL d'édition
+                className={cls.btnPrimaire}
+              >
+                <Icone.Crayon />{t('fiche.modifier')}
+              </button>
+            )}
           </div>
         </div>
         {erreurSuppression && <p role="alert" className={`m-0 ${cls.erreur}`}>{erreurSuppression}</p>}
